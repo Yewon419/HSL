@@ -1,0 +1,1172 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enhanced Stock Analysis Dashboard with Stochastic</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            color: #333;
+            line-height: 1.6;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 25px 50px rgba(0,0,0,0.15);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            font-weight: 300;
+            margin-bottom: 10px;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .navigation {
+            background: #f8f9fa;
+            padding: 15px 20px;
+            border-bottom: 1px solid #dee2e6;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .nav-button {
+            padding: 8px 16px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 14px;
+            transition: background-color 0.3s;
+        }
+
+        .nav-button:hover {
+            background: #0056b3;
+            text-decoration: none;
+            color: white;
+        }
+
+        .nav-button.current {
+            background: #28a745;
+        }
+
+        .controls {
+            background: #f8f9fa;
+            padding: 20px;
+            border-bottom: 1px solid #dee2e6;
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        select, input[type="checkbox"] {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+
+        select {
+            min-width: 200px;
+        }
+
+        label {
+            font-weight: 500;
+            color: #495057;
+        }
+
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 20px;
+            padding: 20px;
+        }
+
+        .chart-container {
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            padding: 20px;
+            height: 450px;
+        }
+
+        .chart-container.small {
+            height: 300px;
+        }
+
+        .chart-title {
+            font-size: 1.2em;
+            font-weight: 600;
+            margin-bottom: 15px;
+            color: #2c3e50;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 8px;
+        }
+
+        .chart-canvas {
+            width: 100% !important;
+            height: calc(100% - 50px) !important;
+            max-height: 380px !important;
+        }
+
+        .small-chart {
+            height: calc(100% - 50px) !important;
+            max-height: 230px !important;
+        }
+
+        .technical-indicators {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            grid-template-rows: 1fr 1fr;
+            gap: 20px;
+        }
+
+        .stockcast-container {
+            grid-column: 1 / -1;
+        }
+
+        .stockcast-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+
+        .stockcast-table th,
+        .stockcast-table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+
+        .stockcast-table th {
+            background-color: #f8f9fa;
+            font-weight: 600;
+            color: #495057;
+        }
+
+        .recommendation-buy {
+            background-color: #d4edda;
+            color: #155724;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-weight: 600;
+        }
+
+        .recommendation-sell {
+            background-color: #f8d7da;
+            color: #721c24;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-weight: 600;
+        }
+
+        .recommendation-hold {
+            background-color: #fff3cd;
+            color: #856404;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-weight: 600;
+        }
+
+        .confidence-bar {
+            width: 100px;
+            height: 20px;
+            background-color: #e9ecef;
+            border-radius: 10px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .confidence-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #dc3545 0%, #ffc107 50%, #28a745 100%);
+            transition: width 0.3s ease;
+        }
+
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+
+        .status-loading { background-color: #ffc107; }
+        .status-success { background-color: #28a745; }
+        .status-error { background-color: #dc3545; }
+
+        .last-updated {
+            color: #6c757d;
+            font-size: 0.9em;
+            text-align: center;
+            padding: 10px;
+            border-top: 1px solid #dee2e6;
+        }
+
+        @media (max-width: 768px) {
+            .technical-indicators {
+                grid-template-columns: 1fr;
+                grid-template-rows: repeat(4, 1fr);
+            }
+
+            .controls {
+                flex-direction: column;
+                align-items: stretch;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Enhanced Stock Analysis Dashboard</h1>
+            <p>종합 주식 분석 대시보드 with AI 추천 & Stochastic</p>
+        </div>
+
+        <div class="navigation">
+            <a href="enhanced_stock_analysis_complete.html" class="nav-button current">📊 Enhanced Stock Analysis</a>
+            <a href="portfolio_dashboard.html" class="nav-button">💼 Portfolio Dashboard</a>
+            <a href="optimized_dashboard.html" class="nav-button">🎯 AI 포트폴리오 최적화</a>
+            <a href="debug_chart.html" class="nav-button">🔧 Chart Debug</a>
+            <a href="test_api.html" class="nav-button">🧪 API Test</a>
+        </div>
+
+        <div class="controls">
+            <div class="control-group">
+                <label for="ticker-select">종목 선택:</label>
+                <select id="ticker-select">
+                    <option value="005930">005930 - 삼성전자</option>
+                    <option value="000660">000660 - SK하이닉스</option>
+                    <option value="035420">035420 - NAVER</option>
+                </select>
+            </div>
+
+            <div class="control-group">
+                <label for="period-select">기간 선택:</label>
+                <select id="period-select">
+                    <option value="1M">1개월</option>
+                    <option value="3M" selected>3개월</option>
+                    <option value="6M">6개월</option>
+                    <option value="1Y">1년</option>
+                </select>
+            </div>
+
+            <div class="control-group">
+                <input type="checkbox" id="show-sma20" checked>
+                <label for="show-sma20">SMA 20</label>
+            </div>
+
+            <div class="control-group">
+                <input type="checkbox" id="show-sma50" checked>
+                <label for="show-sma50">SMA 50</label>
+            </div>
+
+            <div class="control-group">
+                <input type="checkbox" id="show-bb" checked>
+                <label for="show-bb">Bollinger Bands</label>
+            </div>
+
+            <div class="control-group">
+                <input type="checkbox" id="show-stochastic" checked>
+                <label for="show-stochastic">Stochastic</label>
+            </div>
+
+            <div class="control-group">
+                <button onclick="refreshData()" style="padding: 8px 16px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer;">
+                    <span class="status-indicator status-loading" id="status-indicator"></span>
+                    새로고침
+                </button>
+            </div>
+        </div>
+
+        <div class="dashboard-grid">
+            <!-- 주가 차트 -->
+            <div class="chart-container">
+                <div class="chart-title">주가 차트 with 기술지표</div>
+                <canvas id="price-chart" class="chart-canvas"></canvas>
+            </div>
+
+            <!-- 기술지표 그리드 (2x2) -->
+            <div class="technical-indicators">
+                <!-- MACD 차트 (왼쪽) -->
+                <div class="chart-container small">
+                    <div class="chart-title">MACD</div>
+                    <canvas id="macd-chart" class="small-chart"></canvas>
+                </div>
+
+                <!-- RSI 차트 (오른쪽) -->
+                <div class="chart-container small">
+                    <div class="chart-title">RSI (Relative Strength Index)</div>
+                    <canvas id="rsi-chart" class="small-chart"></canvas>
+                </div>
+
+                <!-- Stochastic 차트 -->
+                <div class="chart-container small">
+                    <div class="chart-title">Stochastic Oscillator</div>
+                    <canvas id="stochastic-chart" class="small-chart"></canvas>
+                </div>
+
+                <!-- 볼륨 차트 -->
+                <div class="chart-container small">
+                    <div class="chart-title">거래량 (Volume)</div>
+                    <canvas id="volume-chart" class="small-chart"></canvas>
+                </div>
+            </div>
+
+            <!-- AI 추천 (Stockcast) -->
+            <div class="chart-container stockcast-container" style="height: auto; min-height: 300px;">
+                <div class="chart-title">AI 추천 (Stockcast)</div>
+                <div id="stockcast-content">
+                    <table class="stockcast-table">
+                        <thead>
+                            <tr>
+                                <th>추천</th>
+                                <th>신뢰도</th>
+                                <th>목표가</th>
+                                <th>이유</th>
+                                <th>생성시간</th>
+                            </tr>
+                        </thead>
+                        <tbody id="stockcast-tbody">
+                            <tr>
+                                <td colspan="5" style="text-align: center; padding: 20px;">데이터 로딩 중...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="last-updated">
+            마지막 업데이트: <span id="last-updated-time">-</span>
+        </div>
+    </div>
+
+    <script>
+        // 글로벌 변수
+        let currentTicker = '005930';
+        let currentPeriod = '3M';
+        let priceChart = null;
+        let rsiChart = null;
+        let macdChart = null;
+        let stochasticChart = null;
+        let volumeChart = null;
+
+        // 차트 연동을 위한 변수
+        let allCharts = [];
+        let currentHoverIndex = -1;
+
+        // 시작 시 초기화
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeDashboard();
+        });
+
+        async function initializeDashboard() {
+            updateStatus('loading');
+            try {
+                setupEventListeners();
+                await loadAllData();
+                updateStatus('success');
+            } catch (error) {
+                console.error('Dashboard initialization failed:', error);
+                updateStatus('error');
+            }
+        }
+
+        function setupEventListeners() {
+            // 종목 변경 이벤트
+            document.getElementById('ticker-select').addEventListener('change', async function() {
+                currentTicker = this.value;
+                if (currentTicker) {
+                    await loadAllData();
+                }
+            });
+
+            // 기간 선택 이벤트
+            document.getElementById('period-select').addEventListener('change', async function() {
+                currentPeriod = this.value;
+                if (currentTicker) {
+                    await loadAllData();
+                }
+            });
+
+            // 체크박스 변경 시 차트 업데이트
+            ['show-sma20', 'show-sma50', 'show-bb'].forEach(id => {
+                document.getElementById(id).addEventListener('change', function() {
+                    if (currentTicker) {
+                        loadPriceData();
+                    }
+                });
+            });
+
+            // Stochastic 체크박스 이벤트
+            document.getElementById('show-stochastic').addEventListener('change', function() {
+                if (currentTicker) {
+                    loadIndicatorData();
+                }
+            });
+
+            // 차트 컴테이너에 마우스 leave 이벤트 추가
+            const chartContainers = document.querySelectorAll('.chart-container');
+            chartContainers.forEach(container => {
+                container.addEventListener('mouseleave', clearChartHover);
+            });
+        }
+
+        async function loadAllData() {
+            if (!currentTicker) return;
+
+            updateStatus('loading');
+            try {
+                // 기존 차트 배열 초기화
+                allCharts = [];
+
+                await Promise.all([
+                    loadPriceData(),
+                    loadIndicatorData(),
+                    loadStockcastData(),
+                    loadVolumeData()
+                ]);
+                updateLastUpdated();
+                updateStatus('success');
+            } catch (error) {
+                console.error('Failed to load data:', error);
+                updateStatus('error');
+            }
+        }
+
+        async function loadPriceData() {
+            const mockPriceData = generateMockPriceData();
+            createPriceChart(mockPriceData);
+        }
+
+        async function loadIndicatorData() {
+            const mockRSIData = generateMockRSIData();
+            const mockMACDData = generateMockMACDData();
+            const mockStochasticData = generateMockStochasticData();
+
+            createRSIChart(mockRSIData);
+            createMACDChart(mockMACDData);
+            createStochasticChart(mockStochasticData);
+        }
+
+        async function loadVolumeData() {
+            const mockVolumeData = generateMockVolumeData();
+            createVolumeChart(mockVolumeData);
+        }
+
+        async function loadStockcastData() {
+            try {
+                const mockStockcastData = [
+                    {
+                        recommendation_type: 'SELL',
+                        confidence_score: 75.5,
+                        target_price: null,
+                        reason: 'RSI 81.7 overbought condition',
+                        created_at: '2025-09-26T20:55:11'
+                    },
+                    {
+                        recommendation_type: 'HOLD',
+                        confidence_score: 45.2,
+                        target_price: 85000,
+                        reason: 'Technical indicators mixed signals',
+                        created_at: '2025-09-25T15:30:45'
+                    },
+                    {
+                        recommendation_type: 'BUY',
+                        confidence_score: 82.3,
+                        target_price: 95000,
+                        reason: 'Strong support level at current price',
+                        created_at: '2025-09-24T09:15:22'
+                    }
+                ];
+
+                updateStockcastTable(mockStockcastData);
+            } catch (error) {
+                console.error('Failed to load stockcast data:', error);
+            }
+        }
+
+        function createPriceChart(data) {
+            const ctx = document.getElementById('price-chart').getContext('2d');
+
+            if (priceChart) {
+                priceChart.destroy();
+            }
+
+            const datasets = [
+                {
+                    label: '종가',
+                    data: data.prices,
+                    borderColor: 'rgb(75, 192, 192)',
+                    backgroundColor: 'rgba(75, 192, 192, 0.1)',
+                    tension: 0.1,
+                    pointRadius: 0
+                }
+            ];
+
+            // SMA 20 추가
+            if (document.getElementById('show-sma20').checked) {
+                datasets.push({
+                    label: 'SMA 20',
+                    data: data.sma20,
+                    borderColor: 'rgb(255, 99, 132)',
+                    backgroundColor: 'transparent',
+                    tension: 0.1,
+                    pointRadius: 0
+                });
+            }
+
+            // SMA 50 추가
+            if (document.getElementById('show-sma50').checked) {
+                datasets.push({
+                    label: 'SMA 50',
+                    data: data.sma50,
+                    borderColor: 'rgb(255, 205, 86)',
+                    backgroundColor: 'transparent',
+                    tension: 0.1,
+                    pointRadius: 0
+                });
+            }
+
+            // Bollinger Bands 추가
+            if (document.getElementById('show-bb').checked) {
+                datasets.push(
+                    {
+                        label: '볼린저 상한',
+                        data: data.bbUpper,
+                        borderColor: 'rgba(153, 102, 255, 0.5)',
+                        backgroundColor: 'transparent',
+                        borderDash: [5, 5],
+                        pointRadius: 0
+                    },
+                    {
+                        label: '볼린저 중간',
+                        data: data.sma20,
+                        borderColor: 'rgba(153, 102, 255, 0.3)',
+                        backgroundColor: 'transparent',
+                        borderDash: [2, 2],
+                        pointRadius: 0
+                    },
+                    {
+                        label: '볼린저 하한',
+                        data: data.bbLower,
+                        borderColor: 'rgba(153, 102, 255, 0.5)',
+                        backgroundColor: 'transparent',
+                        borderDash: [5, 5],
+                        pointRadius: 0
+                    }
+                );
+            }
+
+            priceChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: data.dates,
+                    datasets: datasets
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        intersect: false,
+                        mode: 'index'
+                    },
+                    onHover: (event, activeElements, chart) => {
+                        if (activeElements.length > 0) {
+                            const index = activeElements[0].index;
+                            syncChartHover(index, 'price');
+                        } else {
+                            clearChartHover();
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: false
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            position: 'top'
+                        }
+                    },
+                    layout: {
+                        padding: {
+                            top: 5,
+                            bottom: 5
+                        }
+                    }
+                }
+            });
+
+            allCharts.push({ chart: priceChart, id: 'price' });
+        }
+
+        function createRSIChart(data) {
+            const ctx = document.getElementById('rsi-chart').getContext('2d');
+
+            if (rsiChart) {
+                rsiChart.destroy();
+            }
+
+            rsiChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: data.dates,
+                    datasets: [{
+                        label: 'RSI',
+                        data: data.values,
+                        borderColor: 'rgb(255, 99, 132)',
+                        backgroundColor: 'rgba(255, 99, 132, 0.1)',
+                        tension: 0.1,
+                        pointRadius: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        intersect: false,
+                        mode: 'index'
+                    },
+                    onHover: (event, activeElements, chart) => {
+                        if (activeElements.length > 0) {
+                            const index = activeElements[0].index;
+                            syncChartHover(index, 'rsi');
+                        } else {
+                            clearChartHover();
+                        }
+                    },
+                    scales: {
+                        y: {
+                            min: 0,
+                            max: 100,
+                            ticks: {
+                                callback: function(value) {
+                                    return value + '%';
+                                }
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    },
+                    layout: {
+                        padding: {
+                            top: 5,
+                            bottom: 5
+                        }
+                    }
+                }
+            });
+
+            allCharts.push({ chart: rsiChart, id: 'rsi' });
+        }
+
+        function createMACDChart(data) {
+            const ctx = document.getElementById('macd-chart').getContext('2d');
+
+            if (macdChart) {
+                macdChart.destroy();
+            }
+
+            macdChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: data.dates,
+                    datasets: [
+                        {
+                            label: 'MACD',
+                            data: data.macd,
+                            borderColor: 'rgb(75, 192, 192)',
+                            backgroundColor: 'transparent',
+                            tension: 0.1,
+                            pointRadius: 0
+                        },
+                        {
+                            label: 'Signal',
+                            data: data.signal,
+                            borderColor: 'rgb(255, 99, 132)',
+                            backgroundColor: 'transparent',
+                            tension: 0.1,
+                            pointRadius: 0
+                        },
+                        {
+                            label: 'Histogram',
+                            data: data.histogram,
+                            type: 'bar',
+                            backgroundColor: 'rgba(153, 102, 255, 0.5)'
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        intersect: false,
+                        mode: 'index'
+                    },
+                    onHover: (event, activeElements, chart) => {
+                        if (activeElements.length > 0) {
+                            const index = activeElements[0].index;
+                            syncChartHover(index, 'macd');
+                        } else {
+                            clearChartHover();
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            position: 'top'
+                        }
+                    },
+                    layout: {
+                        padding: {
+                            top: 5,
+                            bottom: 5
+                        }
+                    }
+                }
+            });
+
+            allCharts.push({ chart: macdChart, id: 'macd' });
+        }
+
+        function createStochasticChart(data) {
+            const ctx = document.getElementById('stochastic-chart').getContext('2d');
+
+            if (stochasticChart) {
+                stochasticChart.destroy();
+            }
+
+            // Stochastic 체크박스 확인
+            if (!document.getElementById('show-stochastic').checked) {
+                return;
+            }
+
+            stochasticChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: data.dates,
+                    datasets: [
+                        {
+                            label: '%K',
+                            data: data.kValues,
+                            borderColor: 'rgb(75, 192, 192)',
+                            backgroundColor: 'transparent',
+                            tension: 0.1,
+                            pointRadius: 0
+                        },
+                        {
+                            label: '%D',
+                            data: data.dValues,
+                            borderColor: 'rgb(255, 99, 132)',
+                            backgroundColor: 'transparent',
+                            tension: 0.1,
+                            pointRadius: 0
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        intersect: false,
+                        mode: 'index'
+                    },
+                    onHover: (event, activeElements, chart) => {
+                        if (activeElements.length > 0) {
+                            const index = activeElements[0].index;
+                            syncChartHover(index, 'stochastic');
+                        } else {
+                            clearChartHover();
+                        }
+                    },
+                    scales: {
+                        y: {
+                            min: 0,
+                            max: 100,
+                            ticks: {
+                                callback: function(value) {
+                                    return value + '%';
+                                }
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            position: 'top'
+                        }
+                    },
+                    layout: {
+                        padding: {
+                            top: 5,
+                            bottom: 5
+                        }
+                    }
+                }
+            });
+
+            allCharts.push({ chart: stochasticChart, id: 'stochastic' });
+        }
+
+        function createVolumeChart(data) {
+            const ctx = document.getElementById('volume-chart').getContext('2d');
+
+            if (volumeChart) {
+                volumeChart.destroy();
+            }
+
+            volumeChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: data.dates,
+                    datasets: [{
+                        label: '거래량',
+                        data: data.volumes,
+                        backgroundColor: 'rgba(54, 162, 235, 0.6)',
+                        borderColor: 'rgba(54, 162, 235, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        intersect: false,
+                        mode: 'index'
+                    },
+                    onHover: (event, activeElements, chart) => {
+                        if (activeElements.length > 0) {
+                            const index = activeElements[0].index;
+                            syncChartHover(index, 'volume');
+                        } else {
+                            clearChartHover();
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                callback: function(value) {
+                                    return (value / 1000000).toFixed(1) + 'M';
+                                }
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    },
+                    layout: {
+                        padding: {
+                            top: 5,
+                            bottom: 5
+                        }
+                    }
+                }
+            });
+
+            allCharts.push({ chart: volumeChart, id: 'volume' });
+        }
+
+        function updateStockcastTable(data) {
+            const tbody = document.getElementById('stockcast-tbody');
+            tbody.innerHTML = '';
+
+            if (data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 20px;">추천 데이터가 없습니다.</td></tr>';
+                return;
+            }
+
+            data.forEach(item => {
+                const row = document.createElement('tr');
+
+                // 추천 타입
+                const recClass = item.recommendation_type.toLowerCase();
+                const recText = {
+                    'buy': '매수',
+                    'sell': '매도',
+                    'hold': '보유'
+                }[recClass] || item.recommendation_type;
+
+                // 신뢰도 바
+                const confidenceBar = `
+                    <div class="confidence-bar">
+                        <div class="confidence-fill" style="width: ${item.confidence_score}%"></div>
+                    </div>
+                    <small>${item.confidence_score.toFixed(1)}%</small>
+                `;
+
+                row.innerHTML = `
+                    <td><span class="recommendation-${recClass}">${recText}</span></td>
+                    <td>${confidenceBar}</td>
+                    <td>${item.target_price ? '₩' + item.target_price.toLocaleString() : '-'}</td>
+                    <td>${item.reason}</td>
+                    <td>${new Date(item.created_at).toLocaleString('ko-KR')}</td>
+                `;
+
+                tbody.appendChild(row);
+            });
+        }
+
+        function updateStatus(status) {
+            const indicator = document.getElementById('status-indicator');
+            indicator.className = `status-indicator status-${status}`;
+        }
+
+        function updateLastUpdated() {
+            document.getElementById('last-updated-time').textContent = new Date().toLocaleString('ko-KR');
+        }
+
+        async function refreshData() {
+            await loadAllData();
+        }
+
+        // Mock 데이터 생성 함수들
+        function generateMockPriceData() {
+            const dates = [];
+            const prices = [];
+            const sma20 = [];
+            const sma50 = [];
+            const bbUpper = [];
+            const bbLower = [];
+
+            const basePrice = 70000;
+            let currentPrice = basePrice;
+
+            // 기간에 따른 데이터 개수 설정
+            const periodDays = {
+                '1M': 30,
+                '3M': 90,
+                '6M': 180,
+                '1Y': 365
+            };
+
+            const days = periodDays[currentPeriod] || 90;
+
+            for (let i = days; i >= 0; i--) {
+                const date = new Date();
+                date.setDate(date.getDate() - i);
+                dates.push(date.toISOString().split('T')[0]);
+
+                // 가격 변동 시뮬레이션
+                currentPrice += (Math.random() - 0.5) * 2000;
+                prices.push(Math.max(currentPrice, basePrice * 0.8));
+
+                // 단순 이동평균 시뮬레이션
+                if (i <= days - 20) {
+                    sma20.push(currentPrice * (0.98 + Math.random() * 0.04));
+                } else {
+                    sma20.push(null);
+                }
+
+                if (i <= days - 50) {
+                    sma50.push(currentPrice * (0.96 + Math.random() * 0.08));
+                } else {
+                    sma50.push(null);
+                }
+
+                // 볼린저 밴드 시뮬레이션
+                bbUpper.push(currentPrice * 1.05);
+                bbLower.push(currentPrice * 0.95);
+            }
+
+            return { dates, prices, sma20, sma50, bbUpper, bbLower };
+        }
+
+        function generateMockRSIData() {
+            const dates = [];
+            const values = [];
+
+            const periodDays = {
+                '1M': 30,
+                '3M': 90,
+                '6M': 180,
+                '1Y': 365
+            };
+
+            const days = periodDays[currentPeriod] || 90;
+
+            for (let i = days; i >= 0; i--) {
+                const date = new Date();
+                date.setDate(date.getDate() - i);
+                dates.push(date.toISOString().split('T')[0]);
+
+                // RSI 값 시뮬레이션 (0-100)
+                values.push(30 + Math.random() * 40);
+            }
+
+            return { dates, values };
+        }
+
+        function generateMockMACDData() {
+            const dates = [];
+            const macd = [];
+            const signal = [];
+            const histogram = [];
+
+            const periodDays = {
+                '1M': 30,
+                '3M': 90,
+                '6M': 180,
+                '1Y': 365
+            };
+
+            const days = periodDays[currentPeriod] || 90;
+
+            for (let i = days; i >= 0; i--) {
+                const date = new Date();
+                date.setDate(date.getDate() - i);
+                dates.push(date.toISOString().split('T')[0]);
+
+                // MACD 값 시뮬레이션
+                const macdValue = (Math.random() - 0.5) * 200;
+                const signalValue = macdValue * 0.8 + (Math.random() - 0.5) * 50;
+
+                macd.push(macdValue);
+                signal.push(signalValue);
+                histogram.push(macdValue - signalValue);
+            }
+
+            return { dates, macd, signal, histogram };
+        }
+
+        function generateMockStochasticData() {
+            const dates = [];
+            const kValues = [];
+            const dValues = [];
+
+            const periodDays = {
+                '1M': 30,
+                '3M': 90,
+                '6M': 180,
+                '1Y': 365
+            };
+
+            const days = periodDays[currentPeriod] || 90;
+
+            for (let i = days; i >= 0; i--) {
+                const date = new Date();
+                date.setDate(date.getDate() - i);
+                dates.push(date.toISOString().split('T')[0]);
+
+                // Stochastic %K 및 %D 값 시뮬레이션 (0-100)
+                const kValue = Math.random() * 100;
+                const dValue = kValue * 0.9 + Math.random() * 10; // %D는 %K의 이동평균
+
+                kValues.push(kValue);
+                dValues.push(dValue);
+            }
+
+            return { dates, kValues, dValues };
+        }
+
+        function generateMockVolumeData() {
+            const dates = [];
+            const volumes = [];
+
+            const periodDays = {
+                '1M': 30,
+                '3M': 90,
+                '6M': 180,
+                '1Y': 365
+            };
+
+            const days = periodDays[currentPeriod] || 90;
+
+            for (let i = days; i >= 0; i--) {
+                const date = new Date();
+                date.setDate(date.getDate() - i);
+                dates.push(date.toISOString().split('T')[0]);
+
+                // 거래량 시뮬레이션 (100만 ~ 1000만 주)
+                const volume = 1000000 + Math.random() * 9000000;
+                volumes.push(Math.floor(volume));
+            }
+
+            return { dates, volumes };
+        }
+
+        // 차트 간 연동 함수
+        function syncChartHover(index, sourceChartId) {
+            if (currentHoverIndex === index) return;
+            currentHoverIndex = index;
+
+            allCharts.forEach(({ chart, id }) => {
+                if (id !== sourceChartId && chart && chart.data && chart.data.labels) {
+                    if (index >= 0 && index < chart.data.labels.length) {
+                        // 해당 인덱스의 포인트를 활성화
+                        const activeElements = [];
+                        chart.data.datasets.forEach((dataset, datasetIndex) => {
+                            if (dataset.data[index] !== null && dataset.data[index] !== undefined) {
+                                activeElements.push({
+                                    datasetIndex: datasetIndex,
+                                    index: index
+                                });
+                            }
+                        });
+
+                        chart.setActiveElements(activeElements);
+                        chart.update('none');
+
+                        // Tooltip 표시
+                        chart.tooltip.setActiveElements(activeElements, {
+                            x: chart.scales.x.getPixelForValue(index),
+                            y: chart.scales.y.getPixelForValue(0)
+                        });
+                    }
+                }
+            });
+        }
+
+        // 마우스가 차트에서 벗어났을 때 연동 해제
+        function clearChartHover() {
+            currentHoverIndex = -1;
+            allCharts.forEach(({ chart }) => {
+                if (chart) {
+                    chart.setActiveElements([]);
+                    chart.tooltip.setActiveElements([]);
+                    chart.update('none');
+                }
+            });
+        }
+    </script>
+</body>
+</html>

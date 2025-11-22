@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API 테스트</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { border: 1px solid #ccc; margin: 20px 0; padding: 15px; }
+        .chart-container { width: 100%; height: 400px; margin: 20px 0; }
+        pre { background: #f5f5f5; padding: 10px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <h1>API 및 차트 테스트</h1>
+    
+    <div class="test-section">
+        <h2>1. 로그인 테스트</h2>
+        <button onclick="testLogin()">로그인 테스트</button>
+        <pre id="login-result"></pre>
+    </div>
+
+    <div class="test-section">
+        <h2>2. 주가 데이터 테스트</h2>
+        <button onclick="testPriceData()">주가 데이터 로드</button>
+        <pre id="price-result"></pre>
+    </div>
+
+    <div class="test-section">
+        <h2>3. 차트 테스트</h2>
+        <button onclick="testChart()">차트 생성</button>
+        <div class="chart-container">
+            <canvas id="test-chart"></canvas>
+        </div>
+        <pre id="chart-result"></pre>
+    </div>
+
+    <script>
+        let token = null;
+
+        async function testLogin() {
+            const resultDiv = document.getElementById('login-result');
+            resultDiv.textContent = '로그인 시도 중...';
+            
+            try {
+                const response = await fetch('http://localhost:8000/api/v1/users/token', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: 'username=testuser2&password=password123'
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    token = data.access_token;
+                    resultDiv.textContent = '로그인 성공!\n토큰: ' + token.substring(0, 50) + '...';
+                } else {
+                    const error = await response.json();
+                    resultDiv.textContent = '로그인 실패: ' + JSON.stringify(error, null, 2);
+                }
+            } catch (error) {
+                resultDiv.textContent = '로그인 오류: ' + error.message;
+            }
+        }
+
+        async function testPriceData() {
+            const resultDiv = document.getElementById('price-result');
+            
+            if (!token) {
+                resultDiv.textContent = '먼저 로그인을 해주세요.';
+                return;
+            }
+
+            resultDiv.textContent = '주가 데이터 로드 중...';
+            
+            try {
+                const response = await fetch('http://localhost:8000/api/v1/stocks/005930/prices?limit=10', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    resultDiv.textContent = '주가 데이터 로드 성공!\n' + JSON.stringify(data, null, 2);
+                } else {
+                    const error = await response.json();
+                    resultDiv.textContent = '주가 데이터 로드 실패: ' + JSON.stringify(error, null, 2);
+                }
+            } catch (error) {
+                resultDiv.textContent = '주가 데이터 로드 오류: ' + error.message;
+            }
+        }
+
+        async function testChart() {
+            const resultDiv = document.getElementById('chart-result');
+            
+            if (!token) {
+                resultDiv.textContent = '먼저 로그인을 해주세요.';
+                return;
+            }
+
+            resultDiv.textContent = '차트 생성 중...';
+            
+            try {
+                // 주가 데이터 가져오기
+                const response = await fetch('http://localhost:8000/api/v1/stocks/005930/prices?limit=20', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error('주가 데이터 로드 실패');
+                }
+
+                const priceData = await response.json();
+                console.log('Price data:', priceData);
+                
+                // 데이터 정렬
+                const sortedData = [...priceData].sort((a, b) => new Date(a.date) - new Date(b.date));
+                
+                // 차트 데이터 준비
+                const labels = sortedData.map(item => {
+                    const date = new Date(item.date);
+                    return `${date.getMonth() + 1}/${date.getDate()}`;
+                });
+                
+                const prices = sortedData.map(item => item.close_price);
+                
+                console.log('Labels:', labels);
+                console.log('Prices:', prices);
+                
+                // 기존 차트 제거
+                const ctx = document.getElementById('test-chart').getContext('2d');
+                
+                // Chart.js 차트 생성
+                new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: '삼성전자 종가',
+                            data: prices,
+                            borderColor: 'rgb(75, 192, 192)',
+                            backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                            tension: 0.1,
+                            borderWidth: 2,
+                            pointRadius: 3
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            x: {
+                                title: {
+                                    display: true,
+                                    text: '날짜'
+                                }
+                            },
+                            y: {
+                                title: {
+                                    display: true,
+                                    text: '가격 (원)'
+                                },
+                                ticks: {
+                                    callback: function(value) {
+                                        return value.toLocaleString() + '원';
+                                    }
+                                }
+                            }
+                        },
+                        plugins: {
+                            legend: {
+                                display: true,
+                                position: 'top'
+                            }
+                        }
+                    }
+                });
+
+                resultDiv.textContent = '차트 생성 성공!\n데이터 포인트: ' + prices.length + '개';
+                
+            } catch (error) {
+                console.error('Chart error:', error);
+                resultDiv.textContent = '차트 생성 오류: ' + error.message;
+            }
+        }
+    </script>
+</body>
+</html>

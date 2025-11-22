@@ -1,0 +1,858 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>주식 거래 시스템</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@2.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+    <style>
+        .navbar-brand {
+            font-weight: bold;
+        }
+        .card-header {
+            background-color: #f8f9fa;
+            font-weight: bold;
+        }
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+        }
+        .stock-item {
+            border: 1px solid #dee2e6;
+            border-radius: 0.375rem;
+            margin-bottom: 10px;
+            padding: 15px;
+            background: #fff;
+        }
+        .stock-ticker {
+            font-weight: bold;
+            color: #0d6efd;
+        }
+        .btn-sm {
+            margin-left: 5px;
+        }
+        .tab-pane {
+            min-height: 400px;
+        }
+        .chart-container {
+            position: relative;
+            height: 400px;
+            width: 100%;
+        }
+        .indicator-card {
+            border: 1px solid #dee2e6;
+            border-radius: 0.375rem;
+            margin-bottom: 15px;
+            padding: 15px;
+            background: #fff;
+        }
+        .indicator-value {
+            font-size: 1.2em;
+            font-weight: bold;
+        }
+        .indicator-label {
+            color: #6c757d;
+            font-size: 0.9em;
+        }
+        .signal-bullish {
+            color: #198754;
+            font-weight: bold;
+        }
+        .signal-bearish {
+            color: #dc3545;
+            font-weight: bold;
+        }
+        .signal-neutral {
+            color: #6c757d;
+            font-weight: bold;
+        }
+        .nav-tabs .nav-link {
+            border-radius: 0.375rem 0.375rem 0 0;
+        }
+        .nav-tabs .nav-link.active {
+            background-color: #0d6efd;
+            border-color: #0d6efd;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container">
+            <a class="navbar-brand" href="/" style="cursor: pointer;"><i class="fas fa-chart-line"></i> 주식 거래 시스템</a>
+            <div class="navbar-nav ms-auto">
+                <span id="user-info" class="navbar-text me-3"></span>
+                <button id="logout-btn" class="btn btn-outline-light btn-sm" style="display: none;">로그아웃</button>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <!-- 로그인 섹션 -->
+        <div id="login-section" class="row justify-content-center">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="fas fa-sign-in-alt"></i> 로그인</h5>
+                    </div>
+                    <div class="card-body">
+                        <form id="login-form">
+                            <div class="mb-3">
+                                <label for="username" class="form-label">사용자명</label>
+                                <input type="text" class="form-control" id="username" required value="testuser2">
+                            </div>
+                            <div class="mb-3">
+                                <label for="password" class="form-label">비밀번호</label>
+                                <input type="password" class="form-control" id="password" required value="password123">
+                            </div>
+                            <button type="submit" class="btn btn-primary w-100">로그인</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 메인 애플리케이션 -->
+        <div id="main-app" style="display: none;">
+            <!-- 탭 네비게이션 -->
+            <ul class="nav nav-tabs mb-4" id="mainTabs" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active" id="stocks-tab" data-bs-toggle="tab" data-bs-target="#stocks-pane" type="button" role="tab">
+                        <i class="fas fa-list"></i> 종목 관리
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="charts-tab" data-bs-toggle="tab" data-bs-target="#charts-pane" type="button" role="tab">
+                        <i class="fas fa-chart-line"></i> 기술적 지표 차트
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="indicators-tab" data-bs-toggle="tab" data-bs-target="#indicators-pane" type="button" role="tab">
+                        <i class="fas fa-calculator"></i> 지표 분석
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="signals-tab" data-bs-toggle="tab" data-bs-target="#signals-pane" type="button" role="tab">
+                        <i class="fas fa-signal"></i> 매매 신호
+                    </button>
+                </li>
+            </ul>
+
+            <!-- 탭 컨텐츠 -->
+            <div class="tab-content" id="mainTabContent">
+                <!-- 종목 관리 탭 -->
+                <div class="tab-pane fade show active" id="stocks-pane" role="tabpanel">
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h6 class="mb-0"><i class="fas fa-plus"></i> 종목 추가</h6>
+                                </div>
+                                <div class="card-body">
+                                    <form id="add-stock-form">
+                                        <div class="mb-3">
+                                            <label for="stock-ticker" class="form-label">종목 코드</label>
+                                            <input type="text" class="form-control" id="stock-ticker" placeholder="예: 005930" required>
+                                        </div>
+                                        <button type="submit" class="btn btn-success w-100">추가</button>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-8">
+                            <div class="card">
+                                <div class="card-header d-flex justify-content-between align-items-center">
+                                    <h6 class="mb-0"><i class="fas fa-chart-bar"></i> 종목 목록</h6>
+                                    <div>
+                                        <button id="refresh-stocks" class="btn btn-outline-primary btn-sm">
+                                            <i class="fas fa-sync"></i> 새로고침
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="card-body">
+                                    <div id="stocks-loading" class="loading">
+                                        <i class="fas fa-spinner fa-spin"></i> 로딩 중...
+                                    </div>
+                                    <div id="stocks-list"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 기술적 지표 차트 탭 -->
+                <div class="tab-pane fade" id="charts-pane" role="tabpanel">
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <select id="chart-ticker-select" class="form-select">
+                                <option value="">종목을 선택하세요</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <button id="load-chart-btn" class="btn btn-primary">
+                                <i class="fas fa-chart-line"></i> 차트 로드
+                            </button>
+                        </div>
+                        <div class="col-md-4">
+                            <button id="toggle-indicators-btn" class="btn btn-secondary" style="display: none;">
+                                <i class="fas fa-cog"></i> 지표 설정
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- 지표 토글 패널 -->
+                    <div id="indicator-toggles" class="card mb-3" style="display: none;">
+                        <div class="card-body">
+                            <h6 class="card-title">표시할 지표 선택</h6>
+                            <div class="row">
+                                <div class="col-md-3">
+                                    <div class="form-check">
+                                        <input class="form-check-input indicator-toggle" type="checkbox" value="sma20" id="toggle-sma20" checked>
+                                        <label class="form-check-label" for="toggle-sma20">SMA 20일</label>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="form-check">
+                                        <input class="form-check-input indicator-toggle" type="checkbox" value="sma50" id="toggle-sma50" checked>
+                                        <label class="form-check-label" for="toggle-sma50">SMA 50일</label>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="form-check">
+                                        <input class="form-check-input indicator-toggle" type="checkbox" value="sma200" id="toggle-sma200">
+                                        <label class="form-check-label" for="toggle-sma200">SMA 200일</label>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="form-check">
+                                        <input class="form-check-input indicator-toggle" type="checkbox" value="ema20" id="toggle-ema20">
+                                        <label class="form-check-label" for="toggle-ema20">EMA 20일</label>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="form-check">
+                                        <input class="form-check-input indicator-toggle" type="checkbox" value="bb" id="toggle-bb">
+                                        <label class="form-check-label" for="toggle-bb">볼린저 밴드</label>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="form-check">
+                                        <input class="form-check-input indicator-toggle" type="checkbox" value="volume" id="toggle-volume" checked>
+                                        <label class="form-check-label" for="toggle-volume">거래량</label>
+                                    </div>
+                                </div>
+                            </div>
+                            <button id="update-chart-btn" class="btn btn-sm btn-primary mt-3">
+                                <i class="fas fa-sync"></i> 차트 업데이트
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div id="chart-loading" class="loading">
+                        <i class="fas fa-spinner fa-spin"></i> 차트 로딩 중...
+                    </div>
+                    
+                    <div id="chart-container" style="display: none;">
+                        <div class="row">
+                            <div class="col-12">
+                                <div class="card mb-3">
+                                    <div class="card-header">
+                                        <h6 class="mb-0" id="chart-title">주가 및 기술적 지표</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="chart-container">
+                                            <canvas id="price-chart"></canvas>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 거래량 차트 -->
+                        <div class="row" id="volume-chart-row" style="display: none;">
+                            <div class="col-12">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h6 class="mb-0">거래량</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <div style="height: 150px;">
+                                            <canvas id="volume-chart"></canvas>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 지표 분석 탭 -->
+                <div class="tab-pane fade" id="indicators-pane" role="tabpanel">
+                    <!-- 종목 검색 영역 -->
+                    <div class="card mb-3">
+                        <div class="card-header">
+                            <h6 class="mb-0"><i class="fas fa-search"></i> 종목 검색</h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="row g-2">
+                                <div class="col-md-6">
+                                    <label class="form-label">종목코드 또는 종목명</label>
+                                    <input type="text" id="indicator-stock-search" class="form-control"
+                                           placeholder="예: 005930 또는 삼성전자" autocomplete="off">
+                                    <div id="indicator-autocomplete" class="list-group mt-1" style="position: absolute; z-index: 1000; max-height: 300px; overflow-y: auto; display: none;"></div>
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">조회 기간</label>
+                                    <select id="indicator-period" class="form-select">
+                                        <option value="30" selected>최근 30일</option>
+                                        <option value="60">최근 60일</option>
+                                        <option value="90">최근 90일</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">&nbsp;</label>
+                                    <button id="search-indicator-btn" class="btn btn-primary w-100">
+                                        <i class="fas fa-search"></i> 조회
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="indicators-loading" class="loading">
+                        <i class="fas fa-spinner fa-spin"></i> 데이터 로딩 중...
+                    </div>
+
+                    <!-- 지표 데이터 테이블 -->
+                    <div id="indicators-table-container" style="display: none;">
+                        <div class="card">
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <h6 class="mb-0" id="indicator-table-title">종목 지표 분석</h6>
+                                <button id="back-to-search" class="btn btn-sm btn-outline-secondary">
+                                    <i class="fas fa-arrow-left"></i> 다시 검색
+                                </button>
+                            </div>
+                            <div class="card-body p-0">
+                                <div class="table-responsive">
+                                    <table class="table table-sm table-hover mb-0">
+                                        <thead class="table-light sticky-top">
+                                            <tr>
+                                                <th>날짜</th>
+                                                <th>종가</th>
+                                                <th>고가</th>
+                                                <th>저가</th>
+                                                <th>거래량</th>
+                                                <th>RSI</th>
+                                                <th>MACD</th>
+                                                <th>Stoch K</th>
+                                                <th>Stoch D</th>
+                                                <th>MA20</th>
+                                                <th>MA50</th>
+                                                <th>MA200</th>
+                                                <th>추세</th>
+                                                <th>BB상단</th>
+                                                <th>BB중간</th>
+                                                <th>BB하단</th>
+                                                <th>외인매매</th>
+                                                <th>기관매매</th>
+                                                <th>개인매매</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="indicators-table-body">
+                                            <!-- 데이터가 동적으로 추가됩니다 -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 매매 신호 탭 -->
+                <div class="tab-pane fade" id="signals-pane" role="tabpanel">
+                    <!-- 필터 영역 -->
+                    <div class="card mb-3">
+                        <div class="card-header">
+                            <h6 class="mb-0"><i class="fas fa-filter"></i> 필터</h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="row g-3">
+                                <div class="col-md-2">
+                                    <label class="form-label">국가</label>
+                                    <select id="signal-country-filter" class="form-select form-select-sm">
+                                        <option value="">전체</option>
+                                        <option value="KR">한국</option>
+                                        <option value="US">미국</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">종목코드/명</label>
+                                    <input type="text" id="signal-ticker-filter" class="form-control form-control-sm" placeholder="종목코드 또는 종목명">
+                                </div>
+                                <div class="col-md-2">
+                                    <label class="form-label">날짜</label>
+                                    <input type="date" id="signal-date-filter" class="form-control form-control-sm">
+                                </div>
+                                <div class="col-md-2">
+                                    <label class="form-label">업종</label>
+                                    <select id="signal-sector-filter" class="form-select form-select-sm">
+                                        <option value="">전체</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-2">
+                                    <label class="form-label">전략</label>
+                                    <select id="signal-strategy-filter" class="form-select form-select-sm">
+                                        <option value="">전체</option>
+                                        <option value="RSI+MA상승전략">RSI+MA상승전략</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-1 d-flex align-items-end">
+                                    <button id="apply-signal-filter" class="btn btn-primary btn-sm w-100">
+                                        <i class="fas fa-search"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="signals-loading" class="loading">
+                        <i class="fas fa-spinner fa-spin"></i> 신호 로딩 중...
+                    </div>
+
+                    <!-- 알림 버튼 영역 (항상 표시) -->
+                    <div class="card mb-3" style="display: none;" id="signals-actions-card">
+                        <div class="card-body">
+                            <div class="d-flex gap-2 flex-wrap">
+                                <button id="notification-settings-btn" class="btn btn-outline-secondary btn-sm">
+                                    <i class="fas fa-cog"></i> 알림 설정
+                                </button>
+                                <button id="send-signals-email-btn" class="btn btn-outline-info btn-sm">
+                                    <i class="fas fa-envelope"></i> 이메일 전송
+                                </button>
+                                <button id="send-signals-slack-btn" class="btn btn-outline-warning btn-sm">
+                                    <i class="fab fa-slack"></i> Slack 전송
+                                </button>
+                                <button id="refresh-signals" class="btn btn-outline-primary btn-sm">
+                                    <i class="fas fa-sync"></i> 새로고침
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Grid 형태의 신호 목록 -->
+                    <div id="signals-grid-container" style="display: none;">
+                        <div class="card">
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <h6 class="mb-0"><i class="fas fa-signal"></i> 매매 신호 목록</h6>
+                            </div>
+                            <div class="card-body p-0">
+                                <div class="table-responsive">
+                                    <table class="table table-hover mb-0">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th>국가</th>
+                                                <th>종목코드</th>
+                                                <th>종목명</th>
+                                                <th>업종</th>
+                                                <th>날짜</th>
+                                                <th>전략명</th>
+                                                <th>현재가</th>
+                                                <th>목표가</th>
+                                                <th>손절가</th>
+                                                <th>시그널 근거</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="signals-grid-body">
+                                            <!-- 신호 데이터가 여기에 동적으로 추가됩니다 -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 알림 설정 모달 -->
+        <div class="modal fade" id="notificationSettingsModal" tabindex="-1">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title"><i class="fas fa-cog"></i> 알림 설정</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label for="notification-email" class="form-label">
+                                <i class="fas fa-envelope"></i> 이메일 주소
+                            </label>
+                            <input type="email" class="form-control" id="notification-email" placeholder="example@email.com">
+                            <small class="form-text text-muted">매매 신호를 받을 이메일 주소를 입력하세요</small>
+                        </div>
+                        <div class="mb-3">
+                            <label for="notification-slack-webhook" class="form-label">
+                                <i class="fab fa-slack"></i> Slack 웹훅 URL
+                            </label>
+                            <input type="text" class="form-control" id="notification-slack-webhook" placeholder="https://hooks.slack.com/services/...">
+                            <small class="form-text text-muted">
+                                Slack 웹훅 URL을 입력하세요.
+                                <a href="https://api.slack.com/messaging/webhooks" target="_blank">웹훅 생성 방법</a>
+                            </small>
+                        </div>
+                        <div class="alert alert-info" role="alert">
+                            <i class="fas fa-info-circle"></i>
+                            <strong>팁:</strong> 설정은 브라우저 로컬 스토리지에 저장됩니다.
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">취소</button>
+                        <button type="button" class="btn btn-primary" id="save-notification-settings">저장</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 알림 -->
+        <div id="notification" class="toast-container position-fixed bottom-0 end-0 p-3">
+            <div id="toast" class="toast" role="alert">
+                <div class="toast-header">
+                    <i id="toast-icon" class="fas fa-info-circle me-2"></i>
+                    <strong class="me-auto" id="toast-title">알림</strong>
+                    <button type="button" class="btn-close" data-bs-dismiss="toast"></button>
+                </div>
+                <div class="toast-body" id="toast-body">
+                    메시지
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="app.js?v=20251023"></script>
+    <script>
+        // 지표 분석 탭 기능
+        (function() {
+            const baseURL = 'http://localhost:8000';
+            let allStocks = [];
+            let selectedIndex = -1;
+
+            // 초기화
+            function initIndicatorsTab() {
+                const searchInput = document.getElementById('indicator-stock-search');
+                const searchBtn = document.getElementById('search-indicator-btn');
+                const backBtn = document.getElementById('back-to-search');
+                const autocomplete = document.getElementById('indicator-autocomplete');
+
+                if (!searchInput || !searchBtn || !backBtn) {
+                    console.error('지표 분석 탭 요소를 찾을 수 없습니다');
+                    return;
+                }
+
+                // 종목 목록 로드
+                loadAllStocks();
+
+                // 이벤트 리스너
+                searchInput.addEventListener('input', handleAutocomplete);
+                searchInput.addEventListener('keydown', handleKeydown);
+                searchBtn.addEventListener('click', handleSearch);
+                backBtn.addEventListener('click', showSearchPanel);
+
+                // 외부 클릭 시 자동완성 닫기
+                document.addEventListener('click', (e) => {
+                    if (!searchInput.contains(e.target) && !autocomplete.contains(e.target)) {
+                        autocomplete.style.display = 'none';
+                    }
+                });
+            }
+
+            // 모든 종목 로드
+            async function loadAllStocks() {
+                try {
+                    const token = localStorage.getItem('access_token');
+                    const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+
+                    const response = await fetch(`${baseURL}/api/v1/stocks?limit=10000`, { headers });
+                    if (response.ok) {
+                        const data = await response.json();
+                        allStocks = data.stocks || data || [];
+                    }
+                } catch (error) {
+                    console.error('종목 목록 로드 실패:', error);
+                }
+            }
+
+            // 자동완성 처리
+            function handleAutocomplete(e) {
+                const value = e.target.value.trim();
+                const autocomplete = document.getElementById('indicator-autocomplete');
+
+                if (value.length < 2) {
+                    autocomplete.style.display = 'none';
+                    return;
+                }
+
+                const matches = allStocks.filter(stock => {
+                    const tickerMatch = stock.ticker && stock.ticker.toLowerCase().includes(value.toLowerCase());
+                    const nameMatch = stock.company_name && stock.company_name.toLowerCase().includes(value.toLowerCase());
+                    return tickerMatch || nameMatch;
+                }).slice(0, 10);
+
+                if (matches.length === 0) {
+                    autocomplete.style.display = 'none';
+                    return;
+                }
+
+                autocomplete.innerHTML = matches.map(stock => `
+                    <button type="button" class="list-group-item list-group-item-action" data-ticker="${stock.ticker}" data-name="${stock.company_name || ''}">
+                        <strong>${stock.ticker}</strong> - ${stock.company_name || ''}
+                    </button>
+                `).join('');
+
+                autocomplete.style.display = 'block';
+
+                // 자동완성 항목 클릭 이벤트
+                autocomplete.querySelectorAll('.list-group-item').forEach(item => {
+                    item.addEventListener('click', () => {
+                        const ticker = item.getAttribute('data-ticker');
+                        const name = item.getAttribute('data-name');
+                        document.getElementById('indicator-stock-search').value = `${ticker} - ${name}`;
+                        autocomplete.style.display = 'none';
+                        loadIndicatorData(ticker);
+                    });
+                });
+            }
+
+            // 키보드 이벤트 처리
+            function handleKeydown(e) {
+                const autocomplete = document.getElementById('indicator-autocomplete');
+                const items = autocomplete.querySelectorAll('.list-group-item');
+
+                if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    selectedIndex = Math.min(selectedIndex + 1, items.length - 1);
+                    updateSelection(items);
+                } else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    selectedIndex = Math.max(selectedIndex - 1, 0);
+                    updateSelection(items);
+                } else if (e.key === 'Enter') {
+                    e.preventDefault();
+                    if (selectedIndex >= 0 && selectedIndex < items.length) {
+                        items[selectedIndex].click();
+                        selectedIndex = -1;
+                    } else {
+                        handleSearch();
+                    }
+                } else if (e.key === 'Escape') {
+                    autocomplete.style.display = 'none';
+                    selectedIndex = -1;
+                }
+            }
+
+            // 선택 항목 업데이트
+            function updateSelection(items) {
+                items.forEach((item, index) => {
+                    if (index === selectedIndex) {
+                        item.classList.add('active');
+                        item.scrollIntoView({ block: 'nearest' });
+                    } else {
+                        item.classList.remove('active');
+                    }
+                });
+            }
+
+            // 검색 처리
+            function handleSearch() {
+                const searchValue = document.getElementById('indicator-stock-search').value.trim();
+                if (!searchValue) {
+                    alert('종목코드 또는 종목명을 입력하세요');
+                    return;
+                }
+
+                // 정확히 일치하는 종목 찾기
+                const match = allStocks.find(s => {
+                    const tickerMatch = s.ticker && s.ticker.toUpperCase() === searchValue.toUpperCase();
+                    const nameMatch = s.company_name && s.company_name === searchValue;
+                    const fullMatch = searchValue === `${s.ticker} - ${s.company_name}`;
+                    return tickerMatch || nameMatch || fullMatch;
+                });
+
+                if (match) {
+                    loadIndicatorData(match.ticker);
+                } else {
+                    // 부분 일치
+                    const partialMatch = allStocks.find(s => {
+                        const tickerPartial = s.ticker && s.ticker.includes(searchValue.toUpperCase());
+                        const namePartial = s.company_name && s.company_name.includes(searchValue);
+                        return tickerPartial || namePartial;
+                    });
+
+                    if (partialMatch) {
+                        loadIndicatorData(partialMatch.ticker);
+                    } else {
+                        alert('해당 종목을 찾을 수 없습니다');
+                    }
+                }
+            }
+
+            // 지표 데이터 로드
+            async function loadIndicatorData(ticker) {
+                const loading = document.getElementById('indicators-loading');
+                const tableContainer = document.getElementById('indicators-table-container');
+                const autocomplete = document.getElementById('indicator-autocomplete');
+                const period = document.getElementById('indicator-period').value || 30;
+
+                loading.style.display = 'block';
+                tableContainer.style.display = 'none';
+                autocomplete.style.display = 'none';
+
+                try {
+                    const token = localStorage.getItem('access_token');
+                    const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+
+                    // 병렬로 데이터 가져오기
+                    const [stockRes, pricesRes, indicatorsRes, investorRes] = await Promise.all([
+                        fetch(`${baseURL}/api/v1/stocks/${ticker}`, { headers }),
+                        fetch(`${baseURL}/api/v1/stocks/${ticker}/prices?days=${period}`, { headers }),
+                        fetch(`${baseURL}/api/v1/indicators/timeseries/${ticker}?days=${period}`, { headers }),
+                        fetch(`${baseURL}/api/v1/stocks/${ticker}/investor-trades?days=${period}`, { headers })
+                    ]);
+
+                    const stockInfo = stockRes.ok ? await stockRes.json() : {};
+                    const prices = pricesRes.ok ? await pricesRes.json() : [];
+                    const indicators = indicatorsRes.ok ? await indicatorsRes.json() : [];
+                    const investors = investorRes.ok ? await investorRes.json() : [];
+
+                    // 데이터 병합
+                    const mergedData = prices.map(p => {
+                        const ind = indicators.find(i => i.date === p.date) || {};
+                        const inv = investors.find(i => i.date === p.date) || {};
+
+                        return {
+                            date: p.date,
+                            close: p.close,
+                            high: p.high,
+                            low: p.low,
+                            volume: p.volume,
+                            rsi: ind.rsi,
+                            macd: ind.macd,
+                            stoch_k: ind.stoch_k,
+                            stoch_d: ind.stoch_d,
+                            ma_20: ind.ma_20,
+                            ma_50: ind.ma_50,
+                            ma_200: ind.ma_200,
+                            bollinger_upper: ind.bollinger_upper,
+                            bollinger_middle: ind.bollinger_middle,
+                            bollinger_lower: ind.bollinger_lower,
+                            foreign_buy: inv.foreign_buy,
+                            foreign_sell: inv.foreign_sell,
+                            institution_buy: inv.institution_buy,
+                            institution_sell: inv.institution_sell,
+                            individual_buy: inv.individual_buy,
+                            individual_sell: inv.individual_sell
+                        };
+                    });
+
+                    // 최신 날짜가 위로 오도록 정렬
+                    mergedData.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+                    // 테이블 렌더링
+                    renderIndicatorTable(ticker, stockInfo, mergedData);
+
+                    loading.style.display = 'none';
+                    tableContainer.style.display = 'block';
+
+                } catch (error) {
+                    console.error('지표 데이터 로드 실패:', error);
+                    loading.style.display = 'none';
+                    alert('데이터 로드 중 오류가 발생했습니다');
+                }
+            }
+
+            // 테이블 렌더링
+            function renderIndicatorTable(ticker, stockInfo, data) {
+                const title = document.getElementById('indicator-table-title');
+                const tbody = document.getElementById('indicators-table-body');
+
+                const companyName = stockInfo.company_name || ticker;
+                title.textContent = `${ticker} - ${companyName} (${data.length}건)`;
+
+                tbody.innerHTML = data.map(row => {
+                    // 추세 판단
+                    let trend = '-';
+                    if (row.ma_20 && row.ma_50 && row.ma_200) {
+                        if (row.ma_20 > row.ma_50 && row.ma_50 > row.ma_200) {
+                            trend = '<span class="badge bg-success">정배열</span>';
+                        } else if (row.ma_20 < row.ma_50 && row.ma_50 < row.ma_200) {
+                            trend = '<span class="badge bg-danger">역배열</span>';
+                        } else {
+                            trend = '<span class="badge bg-secondary">혼합</span>';
+                        }
+                    }
+
+                    // RSI 색상
+                    let rsiClass = '';
+                    if (row.rsi) {
+                        if (row.rsi < 30) rsiClass = 'text-primary fw-bold';
+                        else if (row.rsi > 70) rsiClass = 'text-danger fw-bold';
+                    }
+
+                    // 매매 정보
+                    const foreignNet = (row.foreign_buy || 0) - (row.foreign_sell || 0);
+                    const institutionNet = (row.institution_buy || 0) - (row.institution_sell || 0);
+                    const individualNet = (row.individual_buy || 0) - (row.individual_sell || 0);
+
+                    const formatTrade = (net) => {
+                        if (!net || net === 0) return '-';
+                        const color = net > 0 ? 'text-danger' : 'text-primary';
+                        const sign = net > 0 ? '+' : '';
+                        return `<span class="${color}">${sign}${net.toLocaleString()}</span>`;
+                    };
+
+                    return `
+                        <tr>
+                            <td>${row.date || '-'}</td>
+                            <td>${row.close ? row.close.toLocaleString() : '-'}</td>
+                            <td>${row.high ? row.high.toLocaleString() : '-'}</td>
+                            <td>${row.low ? row.low.toLocaleString() : '-'}</td>
+                            <td>${row.volume ? row.volume.toLocaleString() : '-'}</td>
+                            <td class="${rsiClass}">${row.rsi ? row.rsi.toFixed(2) : '-'}</td>
+                            <td>${row.macd ? row.macd.toFixed(2) : '-'}</td>
+                            <td>${row.stoch_k ? row.stoch_k.toFixed(2) : '-'}</td>
+                            <td>${row.stoch_d ? row.stoch_d.toFixed(2) : '-'}</td>
+                            <td>${row.ma_20 ? row.ma_20.toLocaleString() : '-'}</td>
+                            <td>${row.ma_50 ? row.ma_50.toLocaleString() : '-'}</td>
+                            <td>${row.ma_200 ? row.ma_200.toLocaleString() : '-'}</td>
+                            <td>${trend}</td>
+                            <td>${row.bollinger_upper ? row.bollinger_upper.toLocaleString() : '-'}</td>
+                            <td>${row.bollinger_middle ? row.bollinger_middle.toLocaleString() : '-'}</td>
+                            <td>${row.bollinger_lower ? row.bollinger_lower.toLocaleString() : '-'}</td>
+                            <td>${formatTrade(foreignNet)}</td>
+                            <td>${formatTrade(institutionNet)}</td>
+                            <td>${formatTrade(individualNet)}</td>
+                        </tr>
+                    `;
+                }).join('');
+            }
+
+            // 검색 패널로 돌아가기
+            function showSearchPanel() {
+                document.getElementById('indicators-table-container').style.display = 'none';
+                document.getElementById('indicator-stock-search').value = '';
+            }
+
+            // DOM 로드 후 초기화
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', initIndicatorsTab);
+            } else {
+                initIndicatorsTab();
+            }
+        })();
+    </script>
+</body>
+</html>

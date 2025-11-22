@@ -1,0 +1,154 @@
+{
+  "dashboard": {
+    "id": null,
+    "title": "Technical Indicators Dashboard",
+    "tags": ["stock", "indicators"],
+    "timezone": "browser",
+    "schemaVersion": 38,
+    "version": 1,
+    "refresh": "30s",
+    "time": {
+      "from": "now-3M",
+      "to": "now"
+    },
+    "templating": {
+      "list": [
+        {
+          "name": "ticker",
+          "type": "query",
+          "datasource": {
+            "type": "postgres",
+            "uid": "PCC52D03280B7034C"
+          },
+          "query": "SELECT ticker FROM stocks WHERE is_active = true ORDER BY ticker LIMIT 10",
+          "current": {
+            "text": "005930",
+            "value": "005930"
+          },
+          "hide": 0,
+          "includeAll": false,
+          "multi": false,
+          "refresh": 1
+        }
+      ]
+    },
+    "panels": [
+      {
+        "id": 1,
+        "title": "Stock Price - Samsung Electronics (005930)",
+        "type": "timeseries",
+        "gridPos": {
+          "h": 8,
+          "w": 24,
+          "x": 0,
+          "y": 0
+        },
+        "targets": [
+          {
+            "datasource": {
+              "type": "postgres",
+              "uid": "PCC52D03280B7034C"
+            },
+            "rawSql": "SELECT date as \"time\", close_price as \"Price\" FROM stock_prices WHERE ticker = '005930' AND date >= NOW() - INTERVAL '3 months' ORDER BY date",
+            "format": "time_series",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "currencyKRW"
+          }
+        }
+      },
+      {
+        "id": 2,
+        "title": "System Statistics",
+        "type": "stat",
+        "gridPos": {
+          "h": 6,
+          "w": 8,
+          "x": 0,
+          "y": 8
+        },
+        "targets": [
+          {
+            "datasource": {
+              "type": "postgres",
+              "uid": "PCC52D03280B7034C"
+            },
+            "rawSql": "SELECT COUNT(DISTINCT ticker) as \"Total Stocks\" FROM stocks WHERE is_active = true",
+            "format": "table",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "id": 3,
+        "title": "Price Records",
+        "type": "stat",
+        "gridPos": {
+          "h": 6,
+          "w": 8,
+          "x": 8,
+          "y": 8
+        },
+        "targets": [
+          {
+            "datasource": {
+              "type": "postgres",
+              "uid": "PCC52D03280B7034C"
+            },
+            "rawSql": "SELECT COUNT(*) as \"Price Records\" FROM stock_prices",
+            "format": "table",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "id": 4,
+        "title": "Technical Indicators",
+        "type": "stat",
+        "gridPos": {
+          "h": 6,
+          "w": 8,
+          "x": 16,
+          "y": 8
+        },
+        "targets": [
+          {
+            "datasource": {
+              "type": "postgres",
+              "uid": "PCC52D03280B7034C"
+            },
+            "rawSql": "SELECT COUNT(*) as \"Indicator Records\" FROM indicator_values",
+            "format": "table",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "id": 5,
+        "title": "Indicator Summary for Samsung (005930)",
+        "type": "table",
+        "gridPos": {
+          "h": 8,
+          "w": 24,
+          "x": 0,
+          "y": 14
+        },
+        "targets": [
+          {
+            "datasource": {
+              "type": "postgres",
+              "uid": "PCC52D03280B7034C"
+            },
+            "rawSql": "SELECT id.code as \"Indicator\", id.name as \"Name\", ic.name as \"Category\", COUNT(iv.date) as \"Data Points\", MAX(iv.date) as \"Latest Date\" FROM indicator_definitions id JOIN indicator_categories ic ON id.category_id = ic.id LEFT JOIN indicator_values iv ON id.id = iv.indicator_id AND iv.ticker = '005930' GROUP BY id.code, id.name, ic.name HAVING COUNT(iv.date) > 0 ORDER BY COUNT(iv.date) DESC",
+            "format": "table",
+            "refId": "A"
+          }
+        ]
+      }
+    ]
+  },
+  "overwrite": true
+}

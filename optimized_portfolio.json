@@ -1,0 +1,97 @@
+{
+  "timestamp": "2025-09-25T06:27:02.257450",
+  "investment_amount": 10000000,
+  "selected_stocks": 6,
+  "final_portfolio_size": 6,
+  "stock_scores": {
+    "AAPL": 2.9716046655538335,
+    "005930.KS": 2.8686019911430902,
+    "000660.KS": 2.8,
+    "TSLA": 2.8,
+    "035420.KS": 2.447892038499774,
+    "NVDA": 2.2697069285053275
+  },
+  "portfolio_weights": {
+    "AAPL": {
+      "weight": 0.16666666666666666,
+      "name": "Apple Inc."
+    },
+    "005930.KS": {
+      "weight": 0.16666666666666666,
+      "name": "Samsung Electronics"
+    },
+    "000660.KS": {
+      "weight": 0.16666666666666666,
+      "name": "SK Hynix"
+    },
+    "TSLA": {
+      "weight": 0.16666666666666666,
+      "name": "Tesla Inc."
+    },
+    "035420.KS": {
+      "weight": 0.16666666666666666,
+      "name": "NAVER"
+    },
+    "NVDA": {
+      "weight": 0.16666666666666666,
+      "name": "NVIDIA Corp."
+    }
+  },
+  "share_allocation": {
+    "AAPL": {
+      "weight": 0.16666666666666666,
+      "target_amount": 1666666.6666666665,
+      "shares": 6605,
+      "actual_amount": 1666507.5338745117,
+      "current_price": 252.30999755859375,
+      "name": "Apple Inc."
+    },
+    "005930.KS": {
+      "weight": 0.16666666666666666,
+      "target_amount": 1666666.6666666665,
+      "shares": 19,
+      "actual_amount": 1622600.0,
+      "current_price": 85400.0,
+      "name": "Samsung Electronics"
+    },
+    "000660.KS": {
+      "weight": 0.16666666666666666,
+      "target_amount": 1666666.6666666665,
+      "shares": 4,
+      "actual_amount": 1430000.0,
+      "current_price": 357500.0,
+      "name": "SK Hynix"
+    },
+    "TSLA": {
+      "weight": 0.16666666666666666,
+      "target_amount": 1666666.6666666665,
+      "shares": 3764,
+      "actual_amount": 1666661.592163086,
+      "current_price": 442.7900085449219,
+      "name": "Tesla Inc."
+    },
+    "035420.KS": {
+      "weight": 0.16666666666666666,
+      "target_amount": 1666666.6666666665,
+      "shares": 7,
+      "actual_amount": 1596000.0,
+      "current_price": 228000.0,
+      "name": "NAVER"
+    },
+    "NVDA": {
+      "weight": 0.16666666666666666,
+      "target_amount": 1666666.6666666665,
+      "shares": 9417,
+      "actual_amount": 1666526.5014953613,
+      "current_price": 176.97000122070312,
+      "name": "NVIDIA Corp."
+    }
+  },
+  "expected_metrics": {
+    "annual_return": 1.0536630690461881,
+    "annual_volatility": 0.20343981229578134,
+    "sharpe_ratio": 5.031773562383568,
+    "max_drawdown": -0.04609837234842029
+  },
+  "optimization_success": false
+}

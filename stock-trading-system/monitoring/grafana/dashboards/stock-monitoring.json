@@ -1,0 +1,378 @@
+{
+  "dashboard": {
+    "id": null,
+    "uid": "stock-monitoring",
+    "title": "Stock Trading Monitoring",
+    "tags": ["stock", "trading"],
+    "timezone": "browser",
+    "schemaVersion": 30,
+    "version": 0,
+    "refresh": "30s",
+    "panels": [
+      {
+        "datasource": {
+          "type": "postgres",
+          "uid": "PostgreSQL"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "axisLabel": "",
+              "axisPlacement": "auto",
+              "barAlignment": 0,
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "gradientMode": "none",
+              "hideFrom": {
+                "tooltip": false,
+                "viz": false,
+                "legend": false
+              },
+              "lineInterpolation": "linear",
+              "lineWidth": 2,
+              "pointSize": 5,
+              "scaleDistribution": {
+                "type": "linear"
+              },
+              "showPoints": "never",
+              "spanNulls": false
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                }
+              ]
+            },
+            "unit": "currencyKRW"
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 0
+        },
+        "id": 1,
+        "options": {
+          "legend": {
+            "calcs": [],
+            "displayMode": "list",
+            "placement": "bottom"
+          },
+          "tooltip": {
+            "mode": "single"
+          }
+        },
+        "pluginVersion": "8.0.0",
+        "targets": [
+          {
+            "format": "time_series",
+            "group": [],
+            "metricColumn": "none",
+            "rawQuery": true,
+            "rawSql": "SELECT \n  date AS \"time\",\n  ticker,\n  close_price\nFROM stock_prices\nWHERE \n  $__timeFilter(date) AND\n  ticker IN ('005930.KS', '000660.KS', 'AAPL', 'NVDA')\nORDER BY date",
+            "refId": "A",
+            "select": [
+              [
+                {
+                  "params": [
+                    "close_price"
+                  ],
+                  "type": "column"
+                }
+              ]
+            ],
+            "table": "stock_prices",
+            "timeColumn": "date",
+            "timeColumnType": "date",
+            "where": []
+          }
+        ],
+        "title": "Stock Price Trends",
+        "type": "timeseries"
+      },
+      {
+        "datasource": {
+          "type": "postgres",
+          "uid": "PostgreSQL"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "red",
+                  "value": null
+                },
+                {
+                  "color": "yellow",
+                  "value": 30
+                },
+                {
+                  "color": "green",
+                  "value": 50
+                },
+                {
+                  "color": "yellow",
+                  "value": 70
+                },
+                {
+                  "color": "red",
+                  "value": 80
+                }
+              ]
+            },
+            "max": 100,
+            "min": 0,
+            "unit": "none"
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 0
+        },
+        "id": 2,
+        "options": {
+          "orientation": "auto",
+          "reduceOptions": {
+            "values": false,
+            "calcs": [
+              "lastNotNull"
+            ],
+            "fields": ""
+          },
+          "showThresholdLabels": false,
+          "showThresholdMarkers": true
+        },
+        "pluginVersion": "8.0.0",
+        "targets": [
+          {
+            "format": "table",
+            "group": [],
+            "metricColumn": "none",
+            "rawQuery": true,
+            "rawSql": "SELECT \n  ticker,\n  rsi as value\nFROM technical_indicators\nWHERE date = (SELECT MAX(date) FROM technical_indicators)\nAND rsi IS NOT NULL",
+            "refId": "A"
+          }
+        ],
+        "title": "RSI Indicators",
+        "type": "gauge"
+      },
+      {
+        "datasource": {
+          "type": "postgres",
+          "uid": "PostgreSQL"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "custom": {
+              "align": "auto",
+              "displayMode": "auto"
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                }
+              ]
+            }
+          },
+          "overrides": [
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "profit_loss_pct"
+              },
+              "properties": [
+                {
+                  "id": "unit",
+                  "value": "percent"
+                },
+                {
+                  "id": "custom.displayMode",
+                  "value": "color-background"
+                },
+                {
+                  "id": "thresholds",
+                  "value": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "red",
+                        "value": null
+                      },
+                      {
+                        "color": "yellow",
+                        "value": -5
+                      },
+                      {
+                        "color": "green",
+                        "value": 0
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 8
+        },
+        "id": 3,
+        "options": {
+          "showHeader": true
+        },
+        "pluginVersion": "8.0.0",
+        "targets": [
+          {
+            "format": "table",
+            "group": [],
+            "metricColumn": "none",
+            "rawQuery": true,
+            "rawSql": "SELECT \n  p.ticker,\n  p.quantity,\n  p.buy_price,\n  sp.close_price as current_price,\n  (sp.close_price - p.buy_price) * p.quantity as profit_loss,\n  ((sp.close_price - p.buy_price) / p.buy_price * 100) as profit_loss_pct\nFROM portfolios p\nJOIN (\n  SELECT ticker, close_price, ROW_NUMBER() OVER (PARTITION BY ticker ORDER BY date DESC) as rn\n  FROM stock_prices\n) sp ON p.ticker = sp.ticker AND sp.rn = 1\nWHERE p.status = 'holding'",
+            "refId": "A"
+          }
+        ],
+        "title": "Portfolio Performance",
+        "type": "table"
+      },
+      {
+        "datasource": {
+          "type": "postgres",
+          "uid": "PostgreSQL"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "hideFrom": {
+                "tooltip": false,
+                "viz": false,
+                "legend": false
+              }
+            },
+            "mappings": [],
+            "unit": "currencyKRW"
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 8
+        },
+        "id": 4,
+        "options": {
+          "legend": {
+            "displayMode": "list",
+            "placement": "bottom"
+          },
+          "pieType": "pie",
+          "tooltip": {
+            "mode": "single"
+          }
+        },
+        "pluginVersion": "8.0.0",
+        "targets": [
+          {
+            "format": "table",
+            "group": [],
+            "metricColumn": "none",
+            "rawQuery": true,
+            "rawSql": "SELECT \n  p.ticker,\n  SUM(p.quantity * sp.close_price) as value\nFROM portfolios p\nJOIN (\n  SELECT ticker, close_price, ROW_NUMBER() OVER (PARTITION BY ticker ORDER BY date DESC) as rn\n  FROM stock_prices\n) sp ON p.ticker = sp.ticker AND sp.rn = 1\nWHERE p.status = 'holding'\nGROUP BY p.ticker",
+            "refId": "A"
+          }
+        ],
+        "title": "Portfolio Distribution",
+        "type": "piechart"
+      },
+      {
+        "datasource": {
+          "type": "postgres",
+          "uid": "PostgreSQL"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "custom": {
+              "align": "auto",
+              "displayMode": "auto"
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                }
+              ]
+            }
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 24,
+          "x": 0,
+          "y": 16
+        },
+        "id": 5,
+        "options": {
+          "showHeader": true,
+          "sortBy": [
+            {
+              "desc": true,
+              "displayName": "confidence_score"
+            }
+          ]
+        },
+        "pluginVersion": "8.0.0",
+        "targets": [
+          {
+            "format": "table",
+            "group": [],
+            "metricColumn": "none",
+            "rawQuery": true,
+            "rawSql": "SELECT \n  ticker,\n  recommendation_type,\n  confidence_score,\n  target_price,\n  stop_loss,\n  reason,\n  created_at\nFROM ai_recommendations\nWHERE valid_until >= CURRENT_DATE\nORDER BY confidence_score DESC\nLIMIT 10",
+            "refId": "A"
+          }
+        ],
+        "title": "AI Recommendations",
+        "type": "table"
+      }
+    ]
+  },
+  "overwrite": true
+}

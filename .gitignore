@@ -1,0 +1,63 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.env
+.env.development
+.env.production
+!.env.example
+!.env.*.example
+*.log
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+*.sql
+stocktrading_backup*.sql
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+docker-compose.override.yml
+
+# Node
+node_modules/
+npm-debug.log
+
+# Airflow
+airflow/logs/scheduler/latest
+
+# Celery
+celerybeat-schedule
+celerybeat-schedule.db
+
+# Deployment (배포 패키지만 제외, docs/deployment는 포함)
+/deployment/
+*.tar.gz
+
+# Temporary files
+1wT/
+temp_*.json
+nul
+
+# Claude Code
+.claude/settings.local.json
+
+# Office files
+*.pptx
+*.xlsx
+*.docx
+github_deploy_key*

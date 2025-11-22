@@ -1,0 +1,267 @@
+version: '3.8'
+
+# ========================================
+# Stock Trading System - Base Configuration
+# ========================================
+# 공통 설정만 포함
+# 환경별 설정은 docker-compose.dev.yml 또는 docker-compose.prod.yml에서 override
+#
+# 사용법:
+# - 개발: docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
+# - 운영: docker-compose -f docker-compose.yml -f docker-compose.prod.yml up
+# ========================================
+
+services:
+  # ========================================
+  # Database Services
+  # ========================================
+  postgres:
+    image: timescale/timescaledb:latest-pg15
+    container_name: stock-db
+    environment:
+      POSTGRES_DB: ${DB_NAME:-stocktrading}
+      POSTGRES_USER: ${DB_USER:-admin}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-admin123}
+      TZ: Asia/Seoul
+      PGTZ: Asia/Seoul
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - stock-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-admin}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: stock-redis
+    networks:
+      - stock-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  influxdb:
+    image: influxdb:2.7
+    container_name: stock-influxdb
+    environment:
+      DOCKER_INFLUXDB_INIT_MODE: setup
+      DOCKER_INFLUXDB_INIT_USERNAME: ${DB_USER:-admin}
+      DOCKER_INFLUXDB_INIT_PASSWORD: ${DB_PASSWORD:-admin123}
+      DOCKER_INFLUXDB_INIT_ORG: ${INFLUXDB_ORG:-stocktrading}
+      DOCKER_INFLUXDB_INIT_BUCKET: ${INFLUXDB_BUCKET:-metrics}
+      DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: ${INFLUXDB_TOKEN:-my-super-secret-auth-token}
+    volumes:
+      - influxdb_data:/var/lib/influxdb2
+    networks:
+      - stock-network
+    healthcheck:
+      test: ["CMD", "influx", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # ========================================
+  # Application Services
+  # ========================================
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: stock-backend
+    env_file:
+      - .env.${ENVIRONMENT:-development}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      influxdb:
+        condition: service_healthy
+    networks:
+      - stock-network
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; exit(0 if requests.get('http://localhost:8000/health').status_code == 200 else 1)"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  celery-worker:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: stock-celery-worker
+    env_file:
+      - .env.${ENVIRONMENT:-development}
+    depends_on:
+      - postgres
+      - redis
+      - backend
+    networks:
+      - stock-network
+
+  celery-beat:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: stock-celery-beat
+    env_file:
+      - .env.${ENVIRONMENT:-development}
+    depends_on:
+      - postgres
+      - redis
+      - backend
+    networks:
+      - stock-network
+
+  # ========================================
+  # Monitoring Services
+  # ========================================
+  grafana:
+    image: grafana/grafana:10.2.0
+    container_name: stock-grafana
+    environment:
+      GF_SECURITY_ADMIN_USER: ${DB_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${DB_PASSWORD:-admin123}
+      GF_INSTALL_PLUGINS: grafana-clock-panel
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards
+      - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources
+    depends_on:
+      - influxdb
+      - postgres
+    networks:
+      - stock-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3000/api/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # ========================================
+  # Workflow Orchestration
+  # ========================================
+  airflow-webserver:
+    image: apache/airflow:2.7.2
+    container_name: stock-airflow-webserver
+    ports:
+      - "8080:8080"
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${DB_USER:-admin}:${DB_PASSWORD:-admin123}@postgres/${DB_NAME:-stocktrading}
+      AIRFLOW__CORE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${DB_USER:-admin}:${DB_PASSWORD:-admin123}@postgres/${DB_NAME:-stocktrading}
+      AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql://${DB_USER:-admin}:${DB_PASSWORD:-admin123}@postgres/${DB_NAME:-stocktrading}
+      AIRFLOW__CELERY__BROKER_URL: redis://redis:6379/0
+      AIRFLOW__CORE__FERNET_KEY: ''
+      AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
+      AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+      AIRFLOW__API__AUTH_BACKENDS: 'airflow.api.auth.backend.basic_auth,airflow.api.auth.backend.session'
+      AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: 'true'
+      TZ: Asia/Seoul
+      _PIP_ADDITIONAL_REQUIREMENTS: 'pandas sqlalchemy psycopg2-binary requests beautifulsoup4 pykrx pytz'
+    volumes:
+      - ./airflow/dags:/opt/airflow/dags
+      - ./airflow/logs:/opt/airflow/logs
+      - ./airflow/plugins:/opt/airflow/plugins
+      - ./airflow/requirements.txt:/requirements.txt:ro
+      - ./backend:/app
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - stock-network
+    command: airflow webserver
+
+  airflow-scheduler:
+    image: apache/airflow:2.7.2
+    container_name: stock-airflow-scheduler
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${DB_USER:-admin}:${DB_PASSWORD:-admin123}@postgres/${DB_NAME:-stocktrading}
+      AIRFLOW__CORE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${DB_USER:-admin}:${DB_PASSWORD:-admin123}@postgres/${DB_NAME:-stocktrading}
+      AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql://${DB_USER:-admin}:${DB_PASSWORD:-admin123}@postgres/${DB_NAME:-stocktrading}
+      AIRFLOW__CELERY__BROKER_URL: redis://redis:6379/0
+      AIRFLOW__CORE__FERNET_KEY: ''
+      AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
+      AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+      AIRFLOW__API__AUTH_BACKENDS: 'airflow.api.auth.backend.basic_auth,airflow.api.auth.backend.session'
+      AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: 'true'
+      TZ: Asia/Seoul
+      _PIP_ADDITIONAL_REQUIREMENTS: 'pandas sqlalchemy psycopg2-binary requests beautifulsoup4 pykrx pytz'
+    volumes:
+      - ./airflow/dags:/opt/airflow/dags
+      - ./airflow/logs:/opt/airflow/logs
+      - ./airflow/plugins:/opt/airflow/plugins
+      - ./airflow/requirements.txt:/requirements.txt:ro
+      - ./backend:/app
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - stock-network
+    command: airflow scheduler
+
+  airflow-init:
+    image: apache/airflow:2.7.2
+    container_name: stock-airflow-init
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${DB_USER:-admin}:${DB_PASSWORD:-admin123}@postgres/${DB_NAME:-stocktrading}
+      AIRFLOW__CORE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${DB_USER:-admin}:${DB_PASSWORD:-admin123}@postgres/${DB_NAME:-stocktrading}
+      AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql://${DB_USER:-admin}:${DB_PASSWORD:-admin123}@postgres/${DB_NAME:-stocktrading}
+      AIRFLOW__CELERY__BROKER_URL: redis://redis:6379/0
+      AIRFLOW__CORE__FERNET_KEY: ''
+      AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
+      AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+      AIRFLOW__API__AUTH_BACKENDS: 'airflow.api.auth.backend.basic_auth,airflow.api.auth.backend.session'
+      _AIRFLOW_DB_UPGRADE: 'true'
+      _AIRFLOW_WWW_USER_CREATE: 'true'
+      _AIRFLOW_WWW_USER_USERNAME: ${DB_USER:-admin}
+      _AIRFLOW_WWW_USER_PASSWORD: ${DB_PASSWORD:-admin123}
+      TZ: Asia/Seoul
+      _PIP_ADDITIONAL_REQUIREMENTS: 'pandas sqlalchemy psycopg2-binary requests beautifulsoup4 pykrx pytz'
+    volumes:
+      - ./airflow/dags:/opt/airflow/dags
+      - ./airflow/logs:/opt/airflow/logs
+      - ./airflow/plugins:/opt/airflow/plugins
+      - ./airflow/requirements.txt:/requirements.txt:ro
+      - ./backend:/app
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - stock-network
+    command: >
+      bash -c "
+        airflow db init &&
+        airflow users create \
+          --username ${DB_USER:-admin} \
+          --firstname Admin \
+          --lastname User \
+          --role Admin \
+          --email admin@example.com \
+          --password ${DB_PASSWORD:-admin123}
+      "
+
+# ========================================
+# Volumes - Docker 기본 관리 사용
+# ========================================
+# 참고: Docker Desktop이 F드라이브로 이동되었으므로,
+# Docker 볼륨은 자동으로 F드라이브의 docker-desktop WSL에 저장됨
+volumes:
+  postgres_data:
+  influxdb_data:
+  grafana_data:
+
+# ========================================
+# Networks
+# ========================================
+networks:
+  stock-network:
+    driver: bridge

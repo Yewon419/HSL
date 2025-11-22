@@ -1,0 +1,380 @@
+{
+  "dashboard": {
+    "id": null,
+    "uid": "enhanced-dashboard-002",
+    "title": "Enhanced Stock Analysis Dashboard - Improved",
+    "tags": ["stock", "technical-analysis", "indicators", "dynamic"],
+    "timezone": "browser",
+    "schemaVersion": 38,
+    "version": 2,
+    "refresh": "30s",
+    "templating": {
+      "list": [
+        {
+          "name": "ticker",
+          "type": "query",
+          "current": {
+            "text": "005930 - 삼성전자",
+            "value": "005930"
+          },
+          "datasource": {
+            "type": "postgres",
+            "uid": "PCC52D03280B7034C"
+          },
+          "definition": "SELECT ticker AS __value, ticker || ' - ' || company_name AS __text FROM stocks WHERE is_active = true AND ticker IN (SELECT DISTINCT ticker FROM stock_prices WHERE date >= CURRENT_DATE - INTERVAL '30 days') ORDER BY CASE WHEN ticker = '005930' THEN 1 WHEN ticker = '000660' THEN 2 WHEN ticker = '035420' THEN 3 ELSE 4 END, company_name",
+          "hide": 0,
+          "includeAll": false,
+          "multi": false,
+          "label": "종목선택",
+          "refresh": 1,
+          "regex": "",
+          "skipUrlSync": false,
+          "sort": 0
+        },
+        {
+          "name": "show_sma20",
+          "type": "custom",
+          "current": {
+            "text": "Yes",
+            "value": "1"
+          },
+          "options": [
+            {"text": "Yes", "value": "1"},
+            {"text": "No", "value": "0"}
+          ],
+          "hide": 0,
+          "label": "SMA 20",
+          "refresh": 0
+        },
+        {
+          "name": "show_sma50",
+          "type": "custom",
+          "current": {
+            "text": "Yes",
+            "value": "1"
+          },
+          "options": [
+            {"text": "Yes", "value": "1"},
+            {"text": "No", "value": "0"}
+          ],
+          "hide": 0,
+          "label": "SMA 50",
+          "refresh": 0
+        },
+        {
+          "name": "show_bb",
+          "type": "custom",
+          "current": {
+            "text": "Yes",
+            "value": "1"
+          },
+          "options": [
+            {"text": "Yes", "value": "1"},
+            {"text": "No", "value": "0"}
+          ],
+          "hide": 0,
+          "label": "Bollinger Bands",
+          "refresh": 0
+        }
+      ]
+    },
+    "time": {
+      "from": "now-3M",
+      "to": "now"
+    },
+    "timepicker": {
+      "refresh_intervals": ["5s", "10s", "30s", "1m", "5m", "15m", "30m", "1h", "2h", "1d"]
+    },
+    "panels": [
+      {
+        "id": 1,
+        "title": "주가 차트 with 기술지표",
+        "type": "timeseries",
+        "gridPos": {
+          "h": 12,
+          "w": 24,
+          "x": 0,
+          "y": 0
+        },
+        "datasource": {
+          "type": "postgres",
+          "uid": "PCC52D03280B7034C"
+        },
+        "targets": [
+          {
+            "expr": "",
+            "format": "time_series",
+            "rawSql": "SELECT date as time, close_price as \"종가\" FROM stock_prices WHERE ticker = '$ticker' AND date >= $__timeFrom() AND date <= $__timeTo() ORDER BY date",
+            "refId": "A"
+          },
+          {
+            "expr": "",
+            "format": "time_series",
+            "rawSql": "SELECT iv.date as time, (iv.value::json->>'sma_20')::float as \"SMA 20\" FROM indicator_values iv JOIN indicator_definitions id ON iv.indicator_id = id.id WHERE iv.ticker = '$ticker' AND id.code = 'SMA' AND iv.date >= $__timeFrom() AND iv.date <= $__timeTo() AND '$show_sma20' = '1' ORDER BY iv.date",
+            "refId": "B"
+          },
+          {
+            "expr": "",
+            "format": "time_series",
+            "rawSql": "SELECT iv.date as time, (iv.value::json->>'sma_50')::float as \"SMA 50\" FROM indicator_values iv JOIN indicator_definitions id ON iv.indicator_id = id.id WHERE iv.ticker = '$ticker' AND id.code = 'SMA' AND iv.date >= $__timeFrom() AND iv.date <= $__timeTo() AND '$show_sma50' = '1' ORDER BY iv.date",
+            "refId": "C"
+          },
+          {
+            "expr": "",
+            "format": "time_series",
+            "rawSql": "SELECT iv.date as time, (iv.value::json->>'bb_upper')::float as \"볼린저 상한\", (iv.value::json->>'bb_middle')::float as \"볼린저 중간\", (iv.value::json->>'bb_lower')::float as \"볼린저 하한\" FROM indicator_values iv JOIN indicator_definitions id ON iv.indicator_id = id.id WHERE iv.ticker = '$ticker' AND id.code = 'BB' AND iv.date >= $__timeFrom() AND iv.date <= $__timeTo() AND '$show_bb' = '1' ORDER BY iv.date",
+            "refId": "D"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "axisLabel": "",
+              "axisPlacement": "auto",
+              "barAlignment": 0,
+              "drawStyle": "line",
+              "fillOpacity": 0,
+              "gradientMode": "none",
+              "hideFrom": {
+                "legend": false,
+                "tooltip": false,
+                "vis": false
+              },
+              "lineInterpolation": "linear",
+              "lineWidth": 1,
+              "pointSize": 5,
+              "scaleDistribution": {
+                "type": "linear"
+              },
+              "showPoints": "never",
+              "spanNulls": false,
+              "stacking": {
+                "group": "A",
+                "mode": "none"
+              },
+              "thresholdsStyle": {
+                "mode": "off"
+              }
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "red",
+                  "value": 80
+                }
+              ]
+            }
+          },
+          "overrides": []
+        },
+        "options": {
+          "legend": {
+            "calcs": [],
+            "displayMode": "list",
+            "placement": "bottom"
+          },
+          "tooltip": {
+            "mode": "single",
+            "sort": "none"
+          }
+        }
+      },
+      {
+        "id": 2,
+        "title": "RSI (Relative Strength Index)",
+        "type": "timeseries",
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 12
+        },
+        "datasource": {
+          "type": "postgres",
+          "uid": "PCC52D03280B7034C"
+        },
+        "targets": [
+          {
+            "expr": "",
+            "format": "time_series",
+            "rawSql": "SELECT iv.date as time, (iv.value::json->>'rsi')::float as \"RSI\" FROM indicator_values iv JOIN indicator_definitions id ON iv.indicator_id = id.id WHERE iv.ticker = '$ticker' AND id.code = 'RSI' AND iv.date >= $__timeFrom() AND iv.date <= $__timeTo() ORDER BY iv.date",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "min": 0,
+            "max": 100,
+            "color": {
+              "mode": "thresholds"
+            },
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "yellow",
+                  "value": 30
+                },
+                {
+                  "color": "red",
+                  "value": 70
+                }
+              ]
+            }
+          }
+        },
+        "options": {
+          "legend": {
+            "calcs": [],
+            "displayMode": "list",
+            "placement": "bottom"
+          }
+        }
+      },
+      {
+        "id": 3,
+        "title": "MACD",
+        "type": "timeseries",
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 12
+        },
+        "datasource": {
+          "type": "postgres",
+          "uid": "PCC52D03280B7034C"
+        },
+        "targets": [
+          {
+            "expr": "",
+            "format": "time_series",
+            "rawSql": "SELECT iv.date as time, (iv.value::json->>'macd')::float as \"MACD\", (iv.value::json->>'macd_signal')::float as \"Signal\", (iv.value::json->>'macd_histogram')::float as \"Histogram\" FROM indicator_values iv JOIN indicator_definitions id ON iv.indicator_id = id.id WHERE iv.ticker = '$ticker' AND id.code = 'MACD' AND iv.date >= $__timeFrom() AND iv.date <= $__timeTo() ORDER BY iv.date",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            }
+          }
+        },
+        "options": {
+          "legend": {
+            "calcs": [],
+            "displayMode": "list",
+            "placement": "bottom"
+          }
+        }
+      },
+      {
+        "id": 4,
+        "title": "AI 추천 (Stockcast)",
+        "type": "table",
+        "gridPos": {
+          "h": 8,
+          "w": 24,
+          "x": 0,
+          "y": 20
+        },
+        "datasource": {
+          "type": "postgres",
+          "uid": "PCC52D03280B7034C"
+        },
+        "targets": [
+          {
+            "expr": "",
+            "format": "table",
+            "rawSql": "SELECT recommendation_type as \"추천\", confidence_score as \"신뢰도\", target_price as \"목표가\", reason as \"이유\", created_at as \"생성시간\" FROM ai_recommendations WHERE ticker = '$ticker.KS' OR ticker = '$ticker' ORDER BY created_at DESC LIMIT 10",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "custom": {
+              "align": "auto",
+              "displayMode": "auto"
+            },
+            "mappings": [
+              {
+                "options": {
+                  "BUY": {
+                    "color": "green",
+                    "index": 0,
+                    "text": "매수"
+                  },
+                  "SELL": {
+                    "color": "red",
+                    "index": 1,
+                    "text": "매도"
+                  },
+                  "HOLD": {
+                    "color": "yellow",
+                    "index": 2,
+                    "text": "보유"
+                  }
+                },
+                "type": "value"
+              }
+            ]
+          },
+          "overrides": [
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "추천"
+              },
+              "properties": [
+                {
+                  "id": "custom.cellOptions",
+                  "value": {
+                    "type": "color-background"
+                  }
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "신뢰도"
+              },
+              "properties": [
+                {
+                  "id": "unit",
+                  "value": "percent"
+                },
+                {
+                  "id": "custom.displayMode",
+                  "value": "gradient-gauge"
+                }
+              ]
+            }
+          ]
+        },
+        "options": {
+          "showHeader": true,
+          "sortBy": [
+            {
+              "desc": true,
+              "displayName": "생성시간"
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

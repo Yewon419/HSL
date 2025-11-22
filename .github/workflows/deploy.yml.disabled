@@ -1,0 +1,127 @@
+name: Deploy to Production Servers
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch: # 수동 실행 가능
+
+jobs:
+  deploy-102-backend:
+    name: Deploy to 102 Server (Backend/Celery)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup SSH key
+        uses: shimataro/ssh-key-action@v2
+        with:
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          known_hosts: unnecessary
+          if_key_exists: replace
+
+      - name: Add known hosts
+        run: ssh-keyscan -H 192.168.219.102 >> ~/.ssh/known_hosts
+
+      - name: Deploy to 102 Server
+        run: |
+          ssh yunsang@192.168.219.102 << 'EOF'
+            set -e
+
+            # Navigate to project directory
+            cd /home/yunsang/stock-trading-system
+
+            # Pull latest code
+            git pull origin main
+
+            # Stop containers
+            docker-compose down
+
+            # Rebuild and restart with production config
+            ENVIRONMENT=production docker-compose -f docker-compose.yml -f docker-compose.prod.yml build
+            ENVIRONMENT=production docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+
+            # Wait for containers to be healthy
+            sleep 15
+
+            # Check container status
+            docker ps | grep stock-backend
+            docker ps | grep stock-celery
+
+            echo "✅ 102 Server deployment completed"
+          EOF
+
+  deploy-101-scheduler:
+    name: Deploy to 101 Server (Scheduler/Grafana)
+    runs-on: ubuntu-latest
+    needs: deploy-102-backend # 102 서버 배포 후 실행
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup SSH key
+        uses: shimataro/ssh-key-action@v2
+        with:
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          known_hosts: unnecessary
+          if_key_exists: replace
+
+      - name: Add known hosts
+        run: ssh-keyscan -H 192.168.219.101 >> ~/.ssh/known_hosts
+
+      - name: Deploy to 101 Server
+        run: |
+          ssh yunsang@192.168.219.101 << 'EOF'
+            set -e
+
+            # Navigate to project directory
+            cd /home/yunsang/stock-trading-system
+
+            # Pull latest code
+            git pull origin main
+
+            # Stop containers
+            docker-compose down
+
+            # Rebuild and restart with production config
+            ENVIRONMENT=production docker-compose -f docker-compose.yml -f docker-compose.prod.yml build
+            ENVIRONMENT=production docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+
+            # Wait for containers to be healthy
+            sleep 20
+
+            # Check container status
+            docker ps | grep stock-grafana
+            docker ps | grep stock-airflow
+
+            echo "✅ 101 Server deployment completed"
+          EOF
+
+  health-check:
+    name: Health Check
+    runs-on: ubuntu-latest
+    needs: [deploy-102-backend, deploy-101-scheduler]
+
+    steps:
+      - name: Check Backend API
+        run: |
+          curl -f http://192.168.219.102:8000/health || exit 1
+          echo "✅ Backend API is healthy"
+
+      - name: Check Grafana
+        run: |
+          curl -f http://192.168.219.101:3000/api/health || exit 1
+          echo "✅ Grafana is healthy"
+
+      - name: Deployment Success
+        run: |
+          echo "========================================="
+          echo "🎉 Deployment Successful!"
+          echo "========================================="
+          echo "Backend: http://192.168.219.102:8000"
+          echo "Grafana: http://192.168.219.101:3000"
+          echo "Airflow: http://192.168.219.101:8080"
+          echo "========================================="

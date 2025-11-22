@@ -1,0 +1,615 @@
+{
+  "dashboard": {
+    "id": null,
+    "uid": "fixed-enhanced-dashboard-001",
+    "title": "Fixed Enhanced Stock Analysis Dashboard",
+    "tags": ["stock", "technical-analysis", "indicators", "all-stocks"],
+    "timezone": "browser",
+    "schemaVersion": 38,
+    "version": 1,
+    "refresh": "30s",
+    "templating": {
+      "list": [
+        {
+          "name": "ticker",
+          "type": "query",
+          "datasource": {
+            "type": "postgres",
+            "uid": "postgres-datasource"
+          },
+          "current": {
+            "text": "005930",
+            "value": "005930"
+          },
+          "definition": "SELECT ticker FROM stocks WHERE is_active = true ORDER BY ticker",
+          "query": "SELECT ticker FROM stocks WHERE is_active = true ORDER BY ticker",
+          "regex": "",
+          "hide": 0,
+          "includeAll": false,
+          "multi": false,
+          "label": "종목코드",
+          "refresh": 1,
+          "sort": 1
+        },
+        {
+          "name": "company_name",
+          "type": "query",
+          "datasource": {
+            "type": "postgres",
+            "uid": "postgres-datasource"
+          },
+          "current": {
+            "text": "삼성전자",
+            "value": "삼성전자"
+          },
+          "definition": "SELECT company_name FROM stocks WHERE ticker = '$ticker'",
+          "query": "SELECT company_name FROM stocks WHERE ticker = '$ticker'",
+          "regex": "",
+          "hide": 2,
+          "includeAll": false,
+          "multi": false,
+          "refresh": 1
+        },
+        {
+          "name": "show_sma20",
+          "type": "custom",
+          "current": {
+            "text": "Yes",
+            "value": "1"
+          },
+          "options": [
+            {"text": "Yes", "value": "1"},
+            {"text": "No", "value": "0"}
+          ],
+          "hide": 0,
+          "label": "SMA 20",
+          "refresh": 0
+        },
+        {
+          "name": "show_sma50",
+          "type": "custom",
+          "current": {
+            "text": "Yes",
+            "value": "1"
+          },
+          "options": [
+            {"text": "Yes", "value": "1"},
+            {"text": "No", "value": "0"}
+          ],
+          "hide": 0,
+          "label": "SMA 50",
+          "refresh": 0
+        },
+        {
+          "name": "show_sma200",
+          "type": "custom",
+          "current": {
+            "text": "No",
+            "value": "0"
+          },
+          "options": [
+            {"text": "Yes", "value": "1"},
+            {"text": "No", "value": "0"}
+          ],
+          "hide": 0,
+          "label": "SMA 200",
+          "refresh": 0
+        },
+        {
+          "name": "show_ema",
+          "type": "custom",
+          "current": {
+            "text": "No",
+            "value": "0"
+          },
+          "options": [
+            {"text": "Yes", "value": "1"},
+            {"text": "No", "value": "0"}
+          ],
+          "hide": 0,
+          "label": "EMA",
+          "refresh": 0
+        },
+        {
+          "name": "show_bb",
+          "type": "custom",
+          "current": {
+            "text": "Yes",
+            "value": "1"
+          },
+          "options": [
+            {"text": "Yes", "value": "1"},
+            {"text": "No", "value": "0"}
+          ],
+          "hide": 0,
+          "label": "볼린저 밴드",
+          "refresh": 0
+        }
+      ]
+    },
+    "time": {
+      "from": "now-30d",
+      "to": "now"
+    },
+    "panels": [
+      {
+        "id": 1,
+        "title": "$ticker - $company_name 주가 및 기술적 지표",
+        "type": "timeseries",
+        "gridPos": {
+          "h": 8,
+          "w": 24,
+          "x": 0,
+          "y": 0
+        },
+        "fieldConfig": {
+          "defaults": {
+            "custom": {
+              "drawStyle": "line",
+              "lineInterpolation": "linear",
+              "barAlignment": 0,
+              "lineWidth": 2,
+              "fillOpacity": 10,
+              "gradientMode": "none",
+              "spanNulls": false,
+              "insertNulls": false,
+              "showPoints": "never",
+              "pointSize": 5,
+              "stacking": {
+                "mode": "none",
+                "group": "A"
+              },
+              "axisPlacement": "auto",
+              "axisLabel": "",
+              "scaleDistribution": {
+                "type": "linear"
+              }
+            },
+            "color": {
+              "mode": "palette-classic"
+            },
+            "mappings": []
+          }
+        },
+        "options": {
+          "tooltip": {
+            "mode": "single",
+            "sort": "none"
+          },
+          "legend": {
+            "displayMode": "list",
+            "placement": "bottom"
+          }
+        },
+        "targets": [
+          {
+            "datasource": {
+              "type": "postgres",
+              "uid": "postgres-datasource"
+            },
+            "format": "time_series",
+            "group": [],
+            "metricColumn": "none",
+            "rawQuery": true,
+            "rawSql": "SELECT date as time, close_price as \"종가\" FROM stock_prices WHERE ticker = '$ticker' AND date >= $__timeFrom() AND date <= $__timeTo() ORDER BY date",
+            "refId": "A",
+            "select": [
+              [
+                {
+                  "params": ["close_price"],
+                  "type": "column"
+                }
+              ]
+            ],
+            "table": "stock_prices",
+            "timeColumn": "date",
+            "timeColumnType": "date",
+            "where": [
+              {
+                "name": "$__timeFilter",
+                "params": [],
+                "type": "macro"
+              }
+            ]
+          },
+          {
+            "datasource": {
+              "type": "postgres",
+              "uid": "postgres-datasource"
+            },
+            "format": "time_series",
+            "hide": false,
+            "rawQuery": true,
+            "rawSql": "SELECT iv.date as time, (iv.value->>'sma_20')::numeric as \"SMA 20\" FROM indicator_values iv JOIN indicator_definitions id ON iv.indicator_id = id.id WHERE iv.ticker = '$ticker' AND id.code = 'SMA' AND iv.date >= $__timeFrom() AND iv.date <= $__timeTo() AND $show_sma20 = 1 AND iv.value->>'sma_20' IS NOT NULL ORDER BY iv.date",
+            "refId": "B"
+          },
+          {
+            "datasource": {
+              "type": "postgres",
+              "uid": "postgres-datasource"
+            },
+            "format": "time_series",
+            "hide": false,
+            "rawQuery": true,
+            "rawSql": "SELECT iv.date as time, (iv.value->>'sma_50')::numeric as \"SMA 50\" FROM indicator_values iv JOIN indicator_definitions id ON iv.indicator_id = id.id WHERE iv.ticker = '$ticker' AND id.code = 'SMA' AND iv.date >= $__timeFrom() AND iv.date <= $__timeTo() AND $show_sma50 = 1 AND iv.value->>'sma_50' IS NOT NULL ORDER BY iv.date",
+            "refId": "C"
+          },
+          {
+            "datasource": {
+              "type": "postgres",
+              "uid": "postgres-datasource"
+            },
+            "format": "time_series",
+            "hide": false,
+            "rawQuery": true,
+            "rawSql": "SELECT iv.date as time, (iv.value->>'sma_200')::numeric as \"SMA 200\" FROM indicator_values iv JOIN indicator_definitions id ON iv.indicator_id = id.id WHERE iv.ticker = '$ticker' AND id.code = 'SMA' AND iv.date >= $__timeFrom() AND iv.date <= $__timeTo() AND $show_sma200 = 1 AND iv.value->>'sma_200' IS NOT NULL ORDER BY iv.date",
+            "refId": "D"
+          },
+          {
+            "datasource": {
+              "type": "postgres",
+              "uid": "postgres-datasource"
+            },
+            "format": "time_series",
+            "hide": false,
+            "rawQuery": true,
+            "rawSql": "SELECT iv.date as time, (iv.value->>'ema_20')::numeric as \"EMA 20\" FROM indicator_values iv JOIN indicator_definitions id ON iv.indicator_id = id.id WHERE iv.ticker = '$ticker' AND id.code = 'EMA' AND iv.date >= $__timeFrom() AND iv.date <= $__timeTo() AND $show_ema = 1 AND iv.value->>'ema_20' IS NOT NULL ORDER BY iv.date",
+            "refId": "E"
+          },
+          {
+            "datasource": {
+              "type": "postgres",
+              "uid": "postgres-datasource"
+            },
+            "format": "time_series",
+            "hide": false,
+            "rawQuery": true,
+            "rawSql": "SELECT iv.date as time, (iv.value->>'bb_upper')::numeric as \"BB Upper\", (iv.value->>'bb_middle')::numeric as \"BB Middle\", (iv.value->>'bb_lower')::numeric as \"BB Lower\" FROM indicator_values iv JOIN indicator_definitions id ON iv.indicator_id = id.id WHERE iv.ticker = '$ticker' AND id.code = 'BB' AND iv.date >= $__timeFrom() AND iv.date <= $__timeTo() AND $show_bb = 1 AND iv.value->>'bb_upper' IS NOT NULL ORDER BY iv.date",
+            "refId": "F"
+          }
+        ]
+      },
+      {
+        "id": 2,
+        "title": "거래량",
+        "type": "timeseries",
+        "gridPos": {
+          "h": 6,
+          "w": 24,
+          "x": 0,
+          "y": 8
+        },
+        "fieldConfig": {
+          "defaults": {
+            "custom": {
+              "drawStyle": "bars",
+              "barAlignment": 0,
+              "lineWidth": 1,
+              "fillOpacity": 80,
+              "gradientMode": "none"
+            },
+            "color": {
+              "mode": "palette-classic"
+            }
+          }
+        },
+        "options": {
+          "tooltip": {
+            "mode": "single"
+          },
+          "legend": {
+            "displayMode": "list",
+            "placement": "bottom"
+          }
+        },
+        "targets": [
+          {
+            "datasource": {
+              "type": "postgres",
+              "uid": "postgres-datasource"
+            },
+            "format": "time_series",
+            "rawQuery": true,
+            "rawSql": "SELECT date as time, volume as \"거래량\" FROM stock_prices WHERE ticker = '$ticker' AND date >= $__timeFrom() AND date <= $__timeTo() ORDER BY date",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "id": 3,
+        "title": "RSI",
+        "type": "timeseries",
+        "gridPos": {
+          "h": 6,
+          "w": 8,
+          "x": 0,
+          "y": 14
+        },
+        "fieldConfig": {
+          "defaults": {
+            "min": 0,
+            "max": 100,
+            "custom": {
+              "drawStyle": "line",
+              "lineWidth": 2
+            },
+            "color": {
+              "mode": "palette-classic"
+            },
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "red",
+                  "value": 70
+                },
+                {
+                  "color": "#EAB839",
+                  "value": 30
+                }
+              ]
+            }
+          }
+        },
+        "options": {
+          "tooltip": {
+            "mode": "single"
+          },
+          "legend": {
+            "displayMode": "list",
+            "placement": "bottom"
+          }
+        },
+        "targets": [
+          {
+            "datasource": {
+              "type": "postgres",
+              "uid": "postgres-datasource"
+            },
+            "format": "time_series",
+            "rawQuery": true,
+            "rawSql": "SELECT iv.date as time, (iv.value->>'rsi')::numeric as \"RSI\" FROM indicator_values iv JOIN indicator_definitions id ON iv.indicator_id = id.id WHERE iv.ticker = '$ticker' AND id.code = 'RSI' AND iv.date >= $__timeFrom() AND iv.date <= $__timeTo() AND iv.value->>'rsi' IS NOT NULL ORDER BY iv.date",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "id": 4,
+        "title": "MACD",
+        "type": "timeseries",
+        "gridPos": {
+          "h": 6,
+          "w": 8,
+          "x": 8,
+          "y": 14
+        },
+        "fieldConfig": {
+          "defaults": {
+            "custom": {
+              "drawStyle": "line",
+              "lineWidth": 2
+            },
+            "color": {
+              "mode": "palette-classic"
+            }
+          }
+        },
+        "options": {
+          "tooltip": {
+            "mode": "multi"
+          },
+          "legend": {
+            "displayMode": "list",
+            "placement": "bottom"
+          }
+        },
+        "targets": [
+          {
+            "datasource": {
+              "type": "postgres",
+              "uid": "postgres-datasource"
+            },
+            "format": "time_series",
+            "rawQuery": true,
+            "rawSql": "SELECT iv.date as time, (iv.value->>'macd')::numeric as \"MACD\", (iv.value->>'macd_signal')::numeric as \"Signal\", (iv.value->>'macd_histogram')::numeric as \"Histogram\" FROM indicator_values iv JOIN indicator_definitions id ON iv.indicator_id = id.id WHERE iv.ticker = '$ticker' AND id.code = 'MACD' AND iv.date >= $__timeFrom() AND iv.date <= $__timeTo() AND iv.value->>'macd' IS NOT NULL ORDER BY iv.date",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "id": 5,
+        "title": "Stochastic",
+        "type": "timeseries",
+        "gridPos": {
+          "h": 6,
+          "w": 8,
+          "x": 16,
+          "y": 14
+        },
+        "fieldConfig": {
+          "defaults": {
+            "min": 0,
+            "max": 100,
+            "custom": {
+              "drawStyle": "line",
+              "lineWidth": 2
+            },
+            "color": {
+              "mode": "palette-classic"
+            },
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "red",
+                  "value": 80
+                },
+                {
+                  "color": "#EAB839",
+                  "value": 20
+                }
+              ]
+            }
+          }
+        },
+        "options": {
+          "tooltip": {
+            "mode": "multi"
+          },
+          "legend": {
+            "displayMode": "list",
+            "placement": "bottom"
+          }
+        },
+        "targets": [
+          {
+            "datasource": {
+              "type": "postgres",
+              "uid": "postgres-datasource"
+            },
+            "format": "time_series",
+            "rawQuery": true,
+            "rawSql": "SELECT iv.date as time, (iv.value->>'stoch_k')::numeric as \"Stochastic %K\", (iv.value->>'stoch_d')::numeric as \"Stochastic %D\" FROM indicator_values iv JOIN indicator_definitions id ON iv.indicator_id = id.id WHERE iv.ticker = '$ticker' AND id.code = 'STOCH' AND iv.date >= $__timeFrom() AND iv.date <= $__timeTo() AND iv.value->>'stoch_k' IS NOT NULL ORDER BY iv.date",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "id": 6,
+        "title": "현재 지표 값",
+        "type": "stat",
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 20
+        },
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                }
+              ]
+            },
+            "custom": {
+              "displayMode": "list",
+              "orientation": "horizontal"
+            }
+          }
+        },
+        "options": {
+          "reduceOptions": {
+            "values": false,
+            "calcs": ["lastNotNull"],
+            "fields": ""
+          },
+          "orientation": "horizontal",
+          "textMode": "value_and_name",
+          "colorMode": "background"
+        },
+        "targets": [
+          {
+            "datasource": {
+              "type": "postgres",
+              "uid": "postgres-datasource"
+            },
+            "format": "table",
+            "rawQuery": true,
+            "rawSql": "SELECT s.ticker, s.company_name as \"회사명\", sp.close_price as \"현재가격\", sp.date as \"날짜\", CASE WHEN sma.value->>'sma_20' IS NOT NULL THEN (sma.value->>'sma_20')::numeric ELSE NULL END as \"SMA 20\", CASE WHEN sma.value->>'sma_50' IS NOT NULL THEN (sma.value->>'sma_50')::numeric ELSE NULL END as \"SMA 50\", CASE WHEN ema.value->>'ema_20' IS NOT NULL THEN (ema.value->>'ema_20')::numeric ELSE NULL END as \"EMA 20\", CASE WHEN rsi.value->>'rsi' IS NOT NULL THEN (rsi.value->>'rsi')::numeric ELSE NULL END as \"RSI\", CASE WHEN macd.value->>'macd' IS NOT NULL THEN (macd.value->>'macd')::numeric ELSE NULL END as \"MACD\" FROM stocks s LEFT JOIN LATERAL (SELECT * FROM stock_prices WHERE ticker = s.ticker ORDER BY date DESC LIMIT 1) sp ON true LEFT JOIN LATERAL (SELECT * FROM indicator_values iv JOIN indicator_definitions id ON iv.indicator_id = id.id WHERE iv.ticker = s.ticker AND id.code = 'SMA' ORDER BY iv.date DESC LIMIT 1) sma ON true LEFT JOIN LATERAL (SELECT * FROM indicator_values iv JOIN indicator_definitions id ON iv.indicator_id = id.id WHERE iv.ticker = s.ticker AND id.code = 'EMA' ORDER BY iv.date DESC LIMIT 1) ema ON true LEFT JOIN LATERAL (SELECT * FROM indicator_values iv JOIN indicator_definitions id ON iv.indicator_id = id.id WHERE iv.ticker = s.ticker AND id.code = 'RSI' ORDER BY iv.date DESC LIMIT 1) rsi ON true LEFT JOIN LATERAL (SELECT * FROM indicator_values iv JOIN indicator_definitions id ON iv.indicator_id = id.id WHERE iv.ticker = s.ticker AND id.code = 'MACD' ORDER BY iv.date DESC LIMIT 1) macd ON true WHERE s.ticker = '$ticker'",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "id": 7,
+        "title": "매매 신호",
+        "type": "stat",
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 20
+        },
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "mappings": [
+              {
+                "type": "value",
+                "value": "BUY",
+                "text": "매수 신호"
+              },
+              {
+                "type": "value", 
+                "value": "SELL",
+                "text": "매도 신호"
+              },
+              {
+                "type": "value",
+                "value": "HOLD",
+                "text": "보유"
+              }
+            ],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "yellow",
+                  "value": null
+                },
+                {
+                  "color": "green",
+                  "value": "BUY"
+                },
+                {
+                  "color": "red",
+                  "value": "SELL"
+                }
+              ]
+            }
+          }
+        },
+        "options": {
+          "reduceOptions": {
+            "values": false,
+            "calcs": ["lastNotNull"],
+            "fields": ""
+          },
+          "orientation": "horizontal",
+          "textMode": "value_and_name"
+        },
+        "targets": [
+          {
+            "datasource": {
+              "type": "postgres",
+              "uid": "postgres-datasource"
+            },
+            "format": "table",
+            "rawQuery": true,
+            "rawSql": "SELECT CASE WHEN rsi_val < 30 AND price > sma20_val THEN 'BUY' WHEN rsi_val > 70 AND price < sma20_val THEN 'SELL' ELSE 'HOLD' END as \"Trading Signal\" FROM ( SELECT sp.close_price as price, CASE WHEN rsi.value->>'rsi' IS NOT NULL THEN (rsi.value->>'rsi')::numeric ELSE 50 END as rsi_val, CASE WHEN sma.value->>'sma_20' IS NOT NULL THEN (sma.value->>'sma_20')::numeric ELSE sp.close_price END as sma20_val FROM stocks s LEFT JOIN LATERAL (SELECT * FROM stock_prices WHERE ticker = s.ticker ORDER BY date DESC LIMIT 1) sp ON true LEFT JOIN LATERAL (SELECT * FROM indicator_values iv JOIN indicator_definitions id ON iv.indicator_id = id.id WHERE iv.ticker = s.ticker AND id.code = 'SMA' ORDER BY iv.date DESC LIMIT 1) sma ON true LEFT JOIN LATERAL (SELECT * FROM indicator_values iv JOIN indicator_definitions id ON iv.indicator_id = id.id WHERE iv.ticker = s.ticker AND id.code = 'RSI' ORDER BY iv.date DESC LIMIT 1) rsi ON true WHERE s.ticker = '$ticker' ) signals",
+            "refId": "A"
+          }
+        ]
+      }
+    ]
+  },
+  "overwrite": true
+}

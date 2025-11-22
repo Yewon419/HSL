@@ -1,0 +1,59 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+
+# Environment variables (환경별 설정 파일은 제외, 템플릿만 Git 추적)
+.env
+.env.local
+.env.development
+.env.production
+.env.staging
+!.env.example
+!.env.*.example
+
+*.log
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+*.sql
+stocktrading_backup*.sql
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+docker-compose.override.yml
+docker-compose.yml.bak
+
+# Node
+node_modules/
+npm-debug.log
+
+# Airflow
+airflow/logs/scheduler/latest
+
+# Celery
+celerybeat-schedule
+celerybeat-schedule.db
+
+# Deployment
+deployment/
+*.tar.gz
+
+# Temporary files
+temp_*.json
+nul

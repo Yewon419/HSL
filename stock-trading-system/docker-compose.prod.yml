@@ -1,0 +1,107 @@
+version: '3.8'
+
+# ========================================
+# Stock Trading System - Production Environment
+# ========================================
+# 운영 환경 전용 설정 (3대 Linux 분산 서버)
+#
+# 사용법:
+#   ENVIRONMENT=production docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# 특징:
+#   - DB 서비스 제외 (103 서버 사용)
+#   - Backend, Celery만 실행 (102 서버)
+#   - 핫 리로드 비활성화
+#   - Worker 수 증가
+#   - 자동 재시작
+# ========================================
+
+services:
+  # ========================================
+  # Database Services - 운영 환경에서는 제외
+  # ========================================
+  # 103 서버의 PostgreSQL, Redis, InfluxDB 사용
+  postgres:
+    # 102 서버에서는 실행하지 않음 (103 서버 사용)
+    profiles:
+      - donotstart
+
+  redis:
+    profiles:
+      - donotstart
+
+  influxdb:
+    profiles:
+      - donotstart
+
+  # ========================================
+  # Application Services - 운영 모드
+  # ========================================
+  backend:
+    ports:
+      - "8000:8000"
+    volumes: []  # 핫 리로드 비활성화 (볼륨 마운트 제거)
+    environment:
+      - ENVIRONMENT=production
+      - PYTHONUNBUFFERED=1
+    # 운영: worker 4개로 실행
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --workers 4 --log-level info
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '1.0'
+          memory: 1G
+
+  celery-worker:
+    volumes: []
+    environment:
+      - ENVIRONMENT=production
+      - PYTHONUNBUFFERED=1
+    # 운영: concurrency 높여서 실행
+    command: celery -A celery_app worker --loglevel=info --concurrency=4
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '1.0'
+          memory: 1G
+
+  celery-beat:
+    volumes: []
+    environment:
+      - ENVIRONMENT=production
+      - PYTHONUNBUFFERED=1
+    command: celery -A celery_app beat --loglevel=info
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+
+  # ========================================
+  # Monitoring Services - 101 서버에서 실행
+  # ========================================
+  # 102 서버에서는 제외
+  grafana:
+    profiles:
+      - donotstart
+
+  airflow-webserver:
+    profiles:
+      - donotstart
+
+  airflow-scheduler:
+    profiles:
+      - donotstart
+
+  airflow-init:
+    profiles:
+      - donotstart

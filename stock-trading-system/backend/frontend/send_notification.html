@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>📱 시그널 알림 전송</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Malgun Gothic', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 40px 20px;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .card {
+            background: white;
+            padding: 40px;
+            border-radius: 20px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+            margin-bottom: 30px;
+        }
+        h1 {
+            color: #2c3e50;
+            margin-bottom: 10px;
+            font-size: 2.5em;
+        }
+        .subtitle {
+            color: #7f8c8d;
+            margin-bottom: 30px;
+            font-size: 1.1em;
+        }
+        .form-group {
+            margin-bottom: 25px;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 10px;
+            font-weight: bold;
+            color: #34495e;
+            font-size: 1.1em;
+        }
+        .form-group input, .form-group select {
+            width: 100%;
+            padding: 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 16px;
+            transition: all 0.3s;
+        }
+        .form-group input:focus, .form-group select:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1);
+        }
+        .btn {
+            width: 100%;
+            padding: 18px;
+            border: none;
+            border-radius: 10px;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-top: 10px;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
+        }
+        .btn-success {
+            background: linear-gradient(135deg, #27ae60 0%, #229954 100%);
+            color: white;
+        }
+        .btn-danger {
+            background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+            color: white;
+        }
+        .result {
+            padding: 20px;
+            border-radius: 10px;
+            margin-top: 20px;
+            display: none;
+        }
+        .result.success {
+            background: #d4edda;
+            border: 2px solid #c3e6cb;
+            color: #155724;
+        }
+        .result.error {
+            background: #f8d7da;
+            border: 2px solid #f5c6cb;
+            color: #721c24;
+        }
+        .info-box {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            border-left: 4px solid #3498db;
+            margin-bottom: 25px;
+        }
+        .info-box h3 {
+            color: #3498db;
+            margin-bottom: 10px;
+        }
+        .info-box p {
+            color: #666;
+            line-height: 1.6;
+        }
+        .info-box a {
+            color: #3498db;
+            text-decoration: none;
+            font-weight: bold;
+        }
+        .info-box a:hover {
+            text-decoration: underline;
+        }
+        .back-link {
+            display: inline-block;
+            color: white;
+            text-decoration: none;
+            padding: 12px 24px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 10px;
+            margin-bottom: 20px;
+            transition: all 0.3s;
+        }
+        .back-link:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="/rsi_ma_strategy.html" class="back-link">← 시그널 화면으로 돌아가기</a>
+
+        <div class="card">
+            <h1>📱 시그널 알림 전송</h1>
+            <p class="subtitle">카카오톡 또는 Slack으로 RSI+MA 매수 시그널을 전송합니다</p>
+
+            <div class="info-box">
+                <h3>📋 사용 방법</h3>
+                <p><strong>카카오톡:</strong> <a href="https://developers.kakao.com/docs/latest/ko/kakaologin/rest-api#request-token" target="_blank">카카오 개발자 센터</a>에서 Access Token 발급 후 입력</p>
+                <p><strong>Slack:</strong> <a href="https://api.slack.com/messaging/webhooks" target="_blank">Slack Incoming Webhooks</a>에서 Webhook URL 생성 후 입력</p>
+            </div>
+
+            <form id="notification-form">
+                <div class="form-group">
+                    <label>📅 조회 날짜 (선택사항)</label>
+                    <input type="date" id="target-date" placeholder="비워두면 최신 시그널 조회">
+                </div>
+
+                <div class="form-group">
+                    <label>📢 전송 채널</label>
+                    <select id="channel" onchange="toggleChannelConfig()">
+                        <option value="">선택하세요</option>
+                        <option value="kakao">카카오톡</option>
+                        <option value="slack">Slack</option>
+                    </select>
+                </div>
+
+                <div class="form-group" id="kakao-config" style="display: none;">
+                    <label>🔑 카카오톡 Access Token</label>
+                    <input type="text" id="kakao-token" placeholder="카카오 개발자 센터에서 발급받은 토큰">
+                </div>
+
+                <div class="form-group" id="slack-config" style="display: none;">
+                    <label>🔗 Slack Webhook URL</label>
+                    <input type="text" id="slack-webhook" placeholder="https://hooks.slack.com/services/...">
+                </div>
+
+                <button type="button" class="btn btn-primary" onclick="sendNotification()">
+                    📤 시그널 전송하기
+                </button>
+
+                <button type="button" class="btn btn-success" onclick="testConnection()">
+                    🔍 연결 테스트
+                </button>
+            </form>
+
+            <div id="result" class="result"></div>
+        </div>
+
+        <div class="card">
+            <h3>💡 전송되는 내용</h3>
+            <pre style="background: #f8f9fa; padding: 20px; border-radius: 10px; overflow-x: auto; color: #2c3e50;">
+📊 RSI+MA 상승전략 시그널 알림
+
+📅 날짜: 2025-10-02
+📈 매수 시그널: 50개
+
+상위 5개 종목:
+
+1. 000320 - 노루홀딩스
+   현재가: 25,400원
+   RSI: 0.00
+   MA20: 31,752 > MA50: 28,404
+
+2. 263700 - 케어랩스
+   현재가: 4,810원
+   RSI: 1.56
+   MA20: 5,609 > MA50: 5,240
+
+...
+
+💻 전체 시그널 확인: http://localhost:8000/rsi_ma_strategy.html</pre>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE_URL = '/api/trading';
+
+        function toggleChannelConfig() {
+            const channel = document.getElementById('channel').value;
+            document.getElementById('kakao-config').style.display = channel === 'kakao' ? 'block' : 'none';
+            document.getElementById('slack-config').style.display = channel === 'slack' ? 'block' : 'none';
+        }
+
+        async function sendNotification() {
+            const resultDiv = document.getElementById('result');
+            const channel = document.getElementById('channel').value;
+            const targetDate = document.getElementById('target-date').value;
+
+            if (!channel) {
+                showResult('error', '전송 채널을 선택해주세요');
+                return;
+            }
+
+            let requestData = {
+                target_date: targetDate || null,
+                channels: [channel]
+            };
+
+            if (channel === 'kakao') {
+                const kakaoToken = document.getElementById('kakao-token').value;
+                if (!kakaoToken) {
+                    showResult('error', '카카오톡 Access Token을 입력해주세요');
+                    return;
+                }
+                requestData.kakao_access_token = kakaoToken;
+            } else if (channel === 'slack') {
+                const slackWebhook = document.getElementById('slack-webhook').value;
+                if (!slackWebhook) {
+                    showResult('error', 'Slack Webhook URL을 입력해주세요');
+                    return;
+                }
+                requestData.slack_webhook = slackWebhook;
+            }
+
+            try {
+                showResult('success', '전송 중입니다... ⏳');
+
+                const response = await fetch(`${API_BASE_URL}/notifications/send-signals`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(requestData)
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    showResult('success', `
+✅ 전송 완료!
+
+📊 발견된 시그널: ${data.signal_count}개
+📤 전송 채널: ${data.channels.join(', ')}
+✨ 성공: ${data.sent_count}/${data.channels.length}
+
+메시지를 확인해주세요!`);
+                } else {
+                    showResult('error', `전송 실패: ${data.detail}`);
+                }
+            } catch (error) {
+                showResult('error', `오류 발생: ${error.message}`);
+            }
+        }
+
+        async function testConnection() {
+            const channel = document.getElementById('channel').value;
+
+            if (!channel) {
+                showResult('error', '전송 채널을 선택해주세요');
+                return;
+            }
+
+            showResult('success', `${channel} 연결 테스트 중... 🔍`);
+
+            // 실제 테스트 메시지 전송
+            const testData = {
+                target_date: null,
+                channels: [channel]
+            };
+
+            if (channel === 'kakao') {
+                testData.kakao_access_token = document.getElementById('kakao-token').value;
+            } else if (channel === 'slack') {
+                testData.slack_webhook = document.getElementById('slack-webhook').value;
+            }
+
+            try {
+                // 시그널이 없어도 연결 테스트를 위해 호출
+                const response = await fetch(`${API_BASE_URL}/signals/all`);
+                const data = await response.json();
+
+                if (response.ok) {
+                    showResult('success', `
+✅ 연결 성공!
+
+현재 시그널 ${data.buy_count + data.sell_count + data.stop_loss_count}개 발견
+- 매수: ${data.buy_count}개
+- 매도: ${data.sell_count}개
+- 손절: ${data.stop_loss_count}개
+
+'시그널 전송하기' 버튼을 눌러 알림을 받아보세요!`);
+                } else {
+                    showResult('error', '연결 테스트 실패');
+                }
+            } catch (error) {
+                showResult('error', `연결 오류: ${error.message}`);
+            }
+        }
+
+        function showResult(type, message) {
+            const resultDiv = document.getElementById('result');
+            resultDiv.className = `result ${type}`;
+            resultDiv.innerHTML = `<pre style="margin: 0; white-space: pre-wrap;">${message}</pre>`;
+            resultDiv.style.display = 'block';
+        }
+
+        // 페이지 로드 시 오늘 날짜를 어제로 설정
+        window.addEventListener('DOMContentLoaded', function() {
+            const yesterday = new Date();
+            yesterday.setDate(yesterday.getDate() - 1);
+            const dateString = yesterday.toISOString().split('T')[0];
+            document.getElementById('target-date').value = dateString;
+        });
+    </script>
+</body>
+</html>

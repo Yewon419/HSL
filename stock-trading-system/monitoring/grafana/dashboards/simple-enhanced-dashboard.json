@@ -1,0 +1,161 @@
+{
+  "dashboard": {
+    "id": null,
+    "uid": "simple-enhanced-001",
+    "title": "Simple Enhanced Stock Analysis",
+    "tags": ["stock", "simple", "enhanced"],
+    "timezone": "browser",
+    "schemaVersion": 38,
+    "version": 1,
+    "refresh": "30s",
+    "templating": {
+      "list": [
+        {
+          "name": "ticker",
+          "type": "custom",
+          "current": {
+            "text": "005930",
+            "value": "005930"
+          },
+          "options": [
+            {"text": "005930", "value": "005930", "selected": true}
+          ],
+          "hide": 0,
+          "label": "종목선택",
+          "refresh": 0
+        }
+      ]
+    },
+    "panels": [
+      {
+        "id": 1,
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+        "type": "timeseries",
+        "title": "Stock Price",
+        "datasource": {
+          "type": "postgres",
+          "uid": "PCC52D03280B7034C"
+        },
+        "targets": [
+          {
+            "rawSql": "SELECT date AS time, close_price AS \"Price\" FROM stock_prices WHERE ticker = '$ticker' AND date >= NOW() - INTERVAL '30 days' ORDER BY date",
+            "format": "time_series",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "palette-classic"},
+            "custom": {
+              "axisLabel": "Price",
+              "drawStyle": "line",
+              "lineWidth": 2,
+              "showPoints": "never"
+            },
+            "unit": "currencyKRW"
+          }
+        }
+      },
+      {
+        "id": 2,
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+        "type": "timeseries",
+        "title": "Stochastic (%K, %D) - Stockcast",
+        "datasource": {
+          "type": "postgres",
+          "uid": "PCC52D03280B7034C"
+        },
+        "targets": [
+          {
+            "rawSql": "SELECT date AS time, (value->>'stoch_k')::numeric AS \"%K\", (value->>'stoch_d')::numeric AS \"%D\" FROM indicator_values iv JOIN indicator_definitions id ON iv.indicator_id = id.id WHERE iv.ticker = '$ticker' AND id.code = 'STOCH' AND date >= NOW() - INTERVAL '30 days' ORDER BY date",
+            "format": "time_series",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "min": 0,
+            "max": 100,
+            "custom": {
+              "drawStyle": "line",
+              "lineWidth": 2,
+              "showPoints": "never"
+            }
+          },
+          "overrides": [
+            {
+              "matcher": {"id": "byName", "options": "%K"},
+              "properties": [{"id": "color", "value": {"fixedColor": "blue", "mode": "fixed"}}]
+            },
+            {
+              "matcher": {"id": "byName", "options": "%D"},
+              "properties": [{"id": "color", "value": {"fixedColor": "red", "mode": "fixed"}}]
+            }
+          ]
+        }
+      },
+      {
+        "id": 3,
+        "gridPos": {"h": 6, "w": 12, "x": 0, "y": 8},
+        "type": "timeseries",
+        "title": "RSI",
+        "datasource": {
+          "type": "postgres",
+          "uid": "PCC52D03280B7034C"
+        },
+        "targets": [
+          {
+            "rawSql": "SELECT date AS time, (value->>'rsi')::numeric AS \"RSI\" FROM indicator_values iv JOIN indicator_definitions id ON iv.indicator_id = id.id WHERE iv.ticker = '$ticker' AND id.code = 'RSI' AND date >= NOW() - INTERVAL '30 days' ORDER BY date",
+            "format": "time_series",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "min": 0,
+            "max": 100,
+            "custom": {
+              "drawStyle": "line",
+              "lineWidth": 2,
+              "showPoints": "never"
+            }
+          }
+        }
+      },
+      {
+        "id": 4,
+        "gridPos": {"h": 6, "w": 12, "x": 12, "y": 8},
+        "type": "timeseries",
+        "title": "Volume",
+        "datasource": {
+          "type": "postgres",
+          "uid": "PCC52D03280B7034C"
+        },
+        "targets": [
+          {
+            "rawSql": "SELECT date AS time, volume AS \"Volume\" FROM stock_prices WHERE ticker = '$ticker' AND date >= NOW() - INTERVAL '30 days' ORDER BY date",
+            "format": "time_series",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "custom": {
+              "drawStyle": "bars",
+              "fillOpacity": 50
+            }
+          }
+        }
+      }
+    ],
+    "time": {
+      "from": "now-30d",
+      "to": "now"
+    },
+    "timepicker": {
+      "refresh_intervals": ["5s", "10s", "30s", "1m", "5m"],
+      "time_options": ["5m", "15m", "1h", "6h", "12h", "24h", "2d", "7d", "30d"]
+    }
+  },
+  "overwrite": true
+}

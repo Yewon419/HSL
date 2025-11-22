@@ -1,0 +1,413 @@
+
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>주식 포트폴리오 대시보드</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #333;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            margin: 0;
+            font-size: 2.5em;
+            font-weight: 300;
+        }
+
+        .stats-overview {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            padding: 30px;
+            background: #f8f9fa;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 25px;
+            border-radius: 12px;
+            text-align: center;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+            transition: transform 0.3s ease;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-5px);
+        }
+
+        .stat-card h3 {
+            margin: 0 0 15px 0;
+            color: #6c757d;
+            font-size: 0.9em;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .stat-card .value {
+            font-size: 2em;
+            font-weight: 700;
+            margin: 10px 0;
+        }
+
+        .positive { color: #28a745; }
+        .negative { color: #dc3545; }
+
+        .portfolio-section {
+            padding: 30px;
+        }
+
+        .section-title {
+            font-size: 1.8em;
+            margin-bottom: 25px;
+            color: #333;
+            border-bottom: 3px solid #667eea;
+            padding-bottom: 10px;
+        }
+
+        .portfolio-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+        }
+
+        .portfolio-table th {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px 15px;
+            font-weight: 600;
+            text-align: left;
+        }
+
+        .portfolio-table td {
+            padding: 15px;
+            border-bottom: 1px solid #eee;
+        }
+
+        .portfolio-table tr:hover {
+            background: #f8f9fa;
+        }
+
+        .charts-section {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 30px;
+            padding: 30px;
+            background: #f8f9fa;
+        }
+
+        .chart-container {
+            background: white;
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+        }
+
+        .recommendations {
+            padding: 30px;
+        }
+
+        .recommendation-card {
+            background: white;
+            margin: 15px 0;
+            padding: 20px;
+            border-radius: 12px;
+            border-left: 5px solid #667eea;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+        }
+
+        .recommendation-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .confidence-badge {
+            background: #667eea;
+            color: white;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 0.9em;
+            font-weight: 600;
+        }
+
+        .buy { border-left-color: #28a745; }
+        .sell { border-left-color: #dc3545; }
+        .hold { border-left-color: #ffc107; }
+
+        .refresh-btn {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px 25px;
+            border-radius: 50px;
+            font-size: 1em;
+            cursor: pointer;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+            transition: transform 0.3s ease;
+        }
+
+        .refresh-btn:hover {
+            transform: scale(1.05);
+        }
+
+        .timestamp {
+            text-align: center;
+            padding: 20px;
+            color: #6c757d;
+            background: #f8f9fa;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚀 주식 포트폴리오 대시보드</h1>
+            <p>실시간 투자 현황 및 AI 추천</p>
+        </div>
+
+        <div class="stats-overview">
+            <div class="stat-card">
+                <h3>총 투자금액</h3>
+                <div class="value">$7,018,500</div>
+            </div>
+            <div class="stat-card">
+                <h3>현재 자산가치</h3>
+                <div class="value">$8,569,439</div>
+            </div>
+            <div class="stat-card">
+                <h3>손익</h3>
+                <div class="value positive">
+                    $+1,550,939
+                </div>
+            </div>
+            <div class="stat-card">
+                <h3>수익률</h3>
+                <div class="value positive">
+                    +22.10%
+                </div>
+            </div>
+        </div>
+
+        <div class="portfolio-section">
+            <h2 class="section-title">📊 보유 종목 현황</h2>
+            <table class="portfolio-table">
+                <thead>
+                    <tr>
+                        <th>종목명</th>
+                        <th>보유량</th>
+                        <th>평균단가</th>
+                        <th>현재가</th>
+                        <th>투자금액</th>
+                        <th>평가금액</th>
+                        <th>손익</th>
+                        <th>수익률</th>
+                        <th>RSI</th>
+                    </tr>
+                </thead>
+                <tbody>
+
+                    <tr>
+                        <td><strong>Samsung Electronics</strong><br><small>005930.KS</small></td>
+                        <td>100주</td>
+                        <td>$70,000</td>
+                        <td>$85,400</td>
+                        <td>$7,000,000</td>
+                        <td>$8,540,000</td>
+                        <td class="positive">$+1,540,000</td>
+                        <td class="positive">+22.00%</td>
+                        <td style="color: #dc3545"><strong>90.6</strong><br><small>과매수</small></td>
+                    </tr>
+
+                    <tr>
+                        <td><strong>Apple Inc.</strong><br><small>AAPL</small></td>
+                        <td>50주</td>
+                        <td>$150</td>
+                        <td>$252</td>
+                        <td>$7,500</td>
+                        <td>$12,615</td>
+                        <td class="positive">$+5,115</td>
+                        <td class="positive">+68.21%</td>
+                        <td style="color: #6c757d"><strong>63.0</strong><br><small>보통</small></td>
+                    </tr>
+
+                    <tr>
+                        <td><strong>NVIDIA Corporation</strong><br><small>NVDA</small></td>
+                        <td>20주</td>
+                        <td>$250</td>
+                        <td>$177</td>
+                        <td>$5,000</td>
+                        <td>$3,539</td>
+                        <td class="negative">$-1,461</td>
+                        <td class="negative">-29.21%</td>
+                        <td style="color: #6c757d"><strong>56.2</strong><br><small>보통</small></td>
+                    </tr>
+
+                    <tr>
+                        <td><strong>Tesla Inc.</strong><br><small>TSLA</small></td>
+                        <td>30주</td>
+                        <td>$200</td>
+                        <td>$443</td>
+                        <td>$6,000</td>
+                        <td>$13,284</td>
+                        <td class="positive">$+7,284</td>
+                        <td class="positive">+121.40%</td>
+                        <td style="color: #dc3545"><strong>85.3</strong><br><small>과매수</small></td>
+                    </tr>
+
+                </tbody>
+            </table>
+        </div>
+
+        <div class="charts-section">
+            <div class="chart-container">
+                <h3>자산 배분</h3>
+                <canvas id="assetAllocationChart"></canvas>
+            </div>
+            <div class="chart-container">
+                <h3>수익률 분포</h3>
+                <canvas id="returnsChart"></canvas>
+            </div>
+        </div>
+
+        <div class="recommendations">
+            <h2 class="section-title">🤖 AI 투자 추천</h2>
+
+            <div class="recommendation-card sell">
+                <div class="recommendation-header">
+                    <h4>005930.KS - SELL</h4>
+                    <span class="confidence-badge">신뢰도 61.9%</span>
+                </div>
+                <p>RSI 90.6 overbought condition</p>
+            </div>
+
+            <div class="recommendation-card sell">
+                <div class="recommendation-header">
+                    <h4>TSLA - SELL</h4>
+                    <span class="confidence-badge">신뢰도 45.8%</span>
+                </div>
+                <p>RSI 85.3 overbought condition</p>
+            </div>
+
+            <div class="recommendation-card sell">
+                <div class="recommendation-header">
+                    <h4>000660.KS - SELL</h4>
+                    <span class="confidence-badge">신뢰도 41.8%</span>
+                </div>
+                <p>RSI 83.9 overbought condition</p>
+            </div>
+
+        </div>
+
+        <div class="timestamp">
+            마지막 업데이트: 2025-09-25 06:18:27
+        </div>
+    </div>
+
+    <button class="refresh-btn" onclick="location.reload()">🔄 새로고침</button>
+
+    <script>
+        // 자산 배분 차트
+        const assetCtx = document.getElementById('assetAllocationChart').getContext('2d');
+        new Chart(assetCtx, {
+            type: 'doughnut',
+            data: {
+                labels: ['Samsung Electronics', 'Apple Inc.', 'NVIDIA Corporation', 'Tesla Inc.'],
+                datasets: [{
+                    data: [8540000.0, 12615.499877929688, 3539.4000244140625, 13283.700256347656],
+                    backgroundColor: [
+                        '#FF6384',
+                        '#36A2EB',
+                        '#FFCE56',
+                        '#4BC0C0',
+                        '#9966FF',
+                        '#FF9F40'
+                    ],
+                    borderWidth: 0
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: {
+                            padding: 20,
+                            font: {
+                                size: 12
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        // 수익률 차트
+        const returnsCtx = document.getElementById('returnsChart').getContext('2d');
+        new Chart(returnsCtx, {
+            type: 'bar',
+            data: {
+                labels: ['Samsung Electronics', 'Apple Inc.', 'NVIDIA Corporation', 'Tesla Inc.'],
+                datasets: [{
+                    label: '수익률 (%)',
+                    data: [22.0, 68.2066650390625, -29.21199951171875, 121.39500427246092],
+                    backgroundColor: [22.0, 68.2066650390625, -29.21199951171875, 121.39500427246092].map(value => value >= 0 ? '#28a745' : '#dc3545'),
+                    borderRadius: 8,
+                    borderWidth: 0
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: {
+                        display: false
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            callback: function(value) {
+                                return value + '%';
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        // 5초마다 자동 새로고침 (선택사항)
+        // setInterval(() => location.reload(), 5000);
+    </script>
+</body>
+</html>

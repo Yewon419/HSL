@@ -1,0 +1,91 @@
+version: '3.8'
+
+# ========================================
+# Stock Trading System - Development Environment
+# ========================================
+# 개발 환경 전용 설정 (Windows PC)
+#
+# 사용법:
+#   docker-compose -f docker-compose.yml -f docker-compose.dev.yml up -d
+#
+# 특징:
+#   - 모든 서비스 로컬 실행
+#   - 핫 리로드 활성화
+#   - 개발용 포트 (5435, 6380)
+#   - 모든 로그 출력
+# ========================================
+
+services:
+  # ========================================
+  # Database Services - 개발용 포트
+  # ========================================
+  postgres:
+    ports:
+      - "5435:5432"  # 개발 환경은 5435 포트
+    environment:
+      # 개발 환경 추가 설정
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8"
+
+  redis:
+    ports:
+      - "6380:6379"  # 개발 환경은 6380 포트
+
+  influxdb:
+    ports:
+      - "8086:8086"
+
+  # ========================================
+  # Application Services - 개발 모드
+  # ========================================
+  backend:
+    ports:
+      - "8000:8000"
+    volumes:
+      # 핫 리로드를 위한 볼륨 마운트
+      - ./backend:/app
+    environment:
+      # 개발 환경 플래그
+      - ENVIRONMENT=development
+      # Python 버퍼링 비활성화 (로그 즉시 출력)
+      - PYTHONUNBUFFERED=1
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload --log-level debug
+
+  celery-worker:
+    volumes:
+      - ./backend:/app
+    environment:
+      - ENVIRONMENT=development
+      - PYTHONUNBUFFERED=1
+    command: celery -A celery_app worker --loglevel=debug
+
+  celery-beat:
+    volumes:
+      - ./backend:/app
+    environment:
+      - ENVIRONMENT=development
+      - PYTHONUNBUFFERED=1
+    command: celery -A celery_app beat --loglevel=debug
+
+  # ========================================
+  # Monitoring Services - 개발 환경
+  # ========================================
+  grafana:
+    ports:
+      - "3000:3000"
+
+  airflow-webserver:
+    ports:
+      - "8080:8080"
+    environment:
+      # 개발 환경에서는 샘플 DAG 로드
+      AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+      # 로그 레벨 상세
+      AIRFLOW__LOGGING__LOGGING_LEVEL: DEBUG
+
+  airflow-scheduler:
+    environment:
+      AIRFLOW__LOGGING__LOGGING_LEVEL: DEBUG
+
+  airflow-init:
+    # 개발 환경에서는 init 한 번만 실행
+    restart: "no"
