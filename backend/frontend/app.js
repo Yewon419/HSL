@@ -8,6 +8,8 @@ class StockTradingApp {
         this.volumeChart = null;
         this.currentChartData = null;
         this.currentIndicatorData = null;
+        this.holdings = [];
+        this.sellSignalsCache = {};  // 매도 신호 캐시
 
         this.initializeApp();
     }
@@ -86,6 +88,18 @@ class StockTradingApp {
         document.getElementById('apply-signal-filter').addEventListener('click', () => this.loadTradingSignals());
         document.getElementById('refresh-signals').addEventListener('click', () => this.loadTradingSignals());
 
+        // 보유종목 관련 이벤트
+        document.getElementById('holding-add-form')?.addEventListener('submit', (e) => this.handleAddHolding(e));
+        document.getElementById('refresh-holdings')?.addEventListener('click', () => this.loadHoldings());
+        document.getElementById('check-sell-signals')?.addEventListener('click', () => this.checkAllSellSignals());
+        this.initHoldingTickerAutocomplete();
+
+        // 매수일 기본값 설정 (오늘)
+        const holdingBuyDate = document.getElementById('holding-buy-date');
+        if (holdingBuyDate && !holdingBuyDate.value) {
+            holdingBuyDate.value = new Date().toISOString().split('T')[0];
+        }
+
         // 탭 변경 이벤트
         const tabElements = document.querySelectorAll('[data-bs-toggle="tab"]');
         tabElements.forEach(tab => {
@@ -106,6 +120,9 @@ class StockTradingApp {
                 } else if (targetId === '#signals-pane') {
                     // 매매 신호 탭 진입 시 자동 로드
                     this.loadTradingSignals();
+                } else if (targetId === '#holdings-pane') {
+                    // 보유종목 탭 진입 시 자동 로드
+                    this.loadHoldings();
                 }
             });
         });
@@ -1162,10 +1179,22 @@ class StockTradingApp {
             // 필터 값 가져오기
             let dateFilter = document.getElementById('signal-date-filter').value;
 
-            // 날짜가 없으면 오늘 날짜로 설정 (동적으로 최신 날짜 사용)
+            // 날짜가 없으면 DB의 최신 데이터 날짜 조회
             if (!dateFilter) {
-                const today = new Date().toISOString().split('T')[0];
-                dateFilter = today;
+                try {
+                    const latestResponse = await fetch(`${this.baseURL}/stocks/latest-date`);
+                    if (latestResponse.ok) {
+                        const latestData = await latestResponse.json();
+                        dateFilter = latestData.latest_date;
+                    }
+                } catch (e) {
+                    console.log('최신 날짜 조회 실패, 오늘 날짜 사용');
+                }
+
+                // 최신 날짜 조회 실패 시 오늘 날짜 사용
+                if (!dateFilter) {
+                    dateFilter = new Date().toISOString().split('T')[0];
+                }
                 document.getElementById('signal-date-filter').value = dateFilter;
             }
 
@@ -1239,6 +1268,11 @@ class StockTradingApp {
                 <td>
                     <small>${signal.reason || 'N/A'}</small>
                 </td>
+                <td>
+                    <button class="btn btn-success btn-sm" onclick="app.openBuyModal('${signal.ticker}', '${signal.company_name || ''}', ${signal.current_price || 0}, ${signal.target_price || 0}, ${signal.stop_loss_price || 0})">
+                        <i class="fas fa-shopping-cart"></i> 매수
+                    </button>
+                </td>
             </tr>
         `).join('');
 
@@ -1288,6 +1322,640 @@ class StockTradingApp {
         
         const bsToast = new bootstrap.Toast(toast);
         bsToast.show();
+    }
+
+    // =============================================
+    // 보유종목 관련 메서드
+    // =============================================
+
+    initHoldingTickerAutocomplete() {
+        const holdingTickerInput = document.getElementById('holding-ticker');
+        const autocompleteList = document.getElementById('holding-autocomplete-list');
+
+        if (!holdingTickerInput || !autocompleteList) return;
+
+        holdingTickerInput.addEventListener('input', (e) => {
+            let value = e.target.value.trim();
+            autocompleteList.innerHTML = '';
+
+            if (value.length < 1) {
+                autocompleteList.style.display = 'none';
+                return;
+            }
+
+            const matches = this.stocks.filter(s => {
+                const tickerMatch = s.ticker.toUpperCase().includes(value.toUpperCase());
+                const nameMatch = s.company_name && s.company_name.toLowerCase().includes(value.toLowerCase());
+                return tickerMatch || nameMatch;
+            }).slice(0, 10);
+
+            if (matches.length === 0) {
+                autocompleteList.style.display = 'none';
+                return;
+            }
+
+            matches.forEach(match => {
+                const item = document.createElement('div');
+                item.className = 'px-3 py-2 cursor-pointer';
+                item.style.cursor = 'pointer';
+                item.style.borderBottom = '1px solid #f0f0f0';
+                item.textContent = `${match.ticker} - ${match.company_name || match.ticker}`;
+
+                item.addEventListener('mouseover', () => item.style.backgroundColor = '#f8f9fa');
+                item.addEventListener('mouseout', () => item.style.backgroundColor = 'transparent');
+                item.addEventListener('click', () => {
+                    holdingTickerInput.value = match.ticker;
+                    autocompleteList.style.display = 'none';
+                });
+
+                autocompleteList.appendChild(item);
+            });
+
+            autocompleteList.style.display = 'block';
+        });
+
+        document.addEventListener('click', (e) => {
+            if (!holdingTickerInput.contains(e.target) && !autocompleteList.contains(e.target)) {
+                autocompleteList.style.display = 'none';
+            }
+        });
+    }
+
+    async loadHoldings() {
+        this.showLoading('holdings-loading', true);
+        document.getElementById('holdings-grid-container').style.display = 'none';
+
+        try {
+            // 보유종목 목록 조회
+            const response = await fetch(`${this.baseURL}/v1/holdings/`, {
+                headers: {
+                    'Authorization': `Bearer ${this.token}`
+                }
+            });
+
+            // 요약 정보 조회
+            const summaryResponse = await fetch(`${this.baseURL}/v1/holdings/summary`, {
+                headers: {
+                    'Authorization': `Bearer ${this.token}`
+                }
+            });
+
+            if (response.ok) {
+                this.holdings = await response.json();
+                this.displayHoldingsGrid();
+                document.getElementById('holdings-grid-container').style.display = 'block';
+            } else {
+                this.showNotification('보유종목을 불러올 수 없습니다', 'error');
+            }
+
+            if (summaryResponse.ok) {
+                const summary = await summaryResponse.json();
+                this.displayHoldingsSummary(summary);
+            }
+        } catch (error) {
+            console.error('보유종목 로드 오류:', error);
+            this.showNotification('보유종목 로드 중 오류가 발생했습니다', 'error');
+        } finally {
+            this.showLoading('holdings-loading', false);
+        }
+    }
+
+    displayHoldingsSummary(summary) {
+        document.getElementById('summary-total-holdings').textContent = summary.total_holdings;
+        document.getElementById('summary-total-value').textContent = summary.total_current_value.toLocaleString() + '원';
+        document.getElementById('summary-profit-loss').textContent =
+            (summary.total_profit_loss >= 0 ? '+' : '') + summary.total_profit_loss.toLocaleString() + '원';
+        document.getElementById('summary-profit-percent').textContent =
+            (summary.total_profit_loss_percent >= 0 ? '+' : '') + summary.total_profit_loss_percent.toFixed(2) + '%';
+        document.getElementById('summary-stop-loss').textContent = summary.stop_loss_triggered;
+        document.getElementById('summary-take-profit').textContent = summary.take_profit_triggered;
+
+        // 수익/손실 카드 색상 변경
+        const profitCard = document.getElementById('summary-profit-card');
+        if (summary.total_profit_loss >= 0) {
+            profitCard.className = 'card bg-success text-white';
+        } else {
+            profitCard.className = 'card bg-danger text-white';
+        }
+    }
+
+    displayHoldingsGrid() {
+        const tbody = document.getElementById('holdings-grid-body');
+
+        if (this.holdings.length === 0) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="13" class="text-center text-muted py-4">
+                        보유종목이 없습니다. 위 폼에서 종목을 추가해주세요.
+                    </td>
+                </tr>
+            `;
+            return;
+        }
+
+        tbody.innerHTML = this.holdings.map(h => {
+            const profitClass = h.profit_loss >= 0 ? 'text-success' : 'text-danger';
+            const profitSign = h.profit_loss >= 0 ? '+' : '';
+
+            let statusBadge = '';
+            if (h.stop_loss_status === 'triggered') {
+                statusBadge = '<span class="badge bg-danger">손절도달</span>';
+            } else if (h.stop_loss_status === 'warning') {
+                statusBadge = '<span class="badge bg-warning text-dark">손절임박</span>';
+            } else if (h.take_profit_status === 'triggered') {
+                statusBadge = '<span class="badge bg-success">익절도달</span>';
+            } else if (h.take_profit_status === 'near') {
+                statusBadge = '<span class="badge bg-info">익절임박</span>';
+            } else {
+                statusBadge = '<span class="badge bg-secondary">안전</span>';
+            }
+
+            // 매도 신호 표시
+            let signalBadge = '<span class="text-muted">-</span>';
+            const signals = this.sellSignalsCache[h.id];
+            if (signals && signals.length > 0) {
+                const criticalCount = signals.filter(s => s.priority === 'CRITICAL').length;
+                const highCount = signals.filter(s => s.priority === 'HIGH').length;
+                const mediumCount = signals.filter(s => s.priority === 'MEDIUM').length;
+
+                if (criticalCount > 0) {
+                    signalBadge = `<span class="badge bg-danger" style="cursor:pointer" onclick="app.showSellSignalDetail(${h.id})">
+                        <i class="fas fa-exclamation-triangle"></i> ${criticalCount} CRITICAL
+                    </span>`;
+                } else if (highCount > 0) {
+                    signalBadge = `<span class="badge bg-warning text-dark" style="cursor:pointer" onclick="app.showSellSignalDetail(${h.id})">
+                        <i class="fas fa-exclamation-circle"></i> ${highCount} HIGH
+                    </span>`;
+                } else if (mediumCount > 0) {
+                    signalBadge = `<span class="badge bg-info" style="cursor:pointer" onclick="app.showSellSignalDetail(${h.id})">
+                        <i class="fas fa-info-circle"></i> ${mediumCount}
+                    </span>`;
+                }
+            }
+
+            return `
+                <tr>
+                    <td><strong>${h.ticker}</strong></td>
+                    <td>${h.company_name || 'N/A'}</td>
+                    <td class="text-end">${h.quantity.toLocaleString()}</td>
+                    <td class="text-end">${h.avg_buy_price.toLocaleString()}원</td>
+                    <td class="text-end">${h.current_price ? h.current_price.toLocaleString() + '원' : 'N/A'}</td>
+                    <td class="text-end">${h.current_value ? h.current_value.toLocaleString() + '원' : 'N/A'}</td>
+                    <td class="text-end ${profitClass}">${profitSign}${h.profit_loss ? h.profit_loss.toLocaleString() : 0}원</td>
+                    <td class="text-end ${profitClass}">${profitSign}${h.profit_loss_percent ? h.profit_loss_percent.toFixed(2) : 0}%</td>
+                    <td class="text-end text-danger">${h.stop_loss_price ? h.stop_loss_price.toLocaleString() + '원' : '-'}</td>
+                    <td class="text-end text-success">${h.take_profit_price ? h.take_profit_price.toLocaleString() + '원' : '-'}</td>
+                    <td>${statusBadge}</td>
+                    <td>${signalBadge}</td>
+                    <td>
+                        <button class="btn btn-outline-primary btn-sm" onclick="app.editHolding(${h.id})" title="수정">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        <button class="btn btn-outline-info btn-sm" onclick="app.checkSellSignal(${h.id})" title="매도 신호 확인">
+                            <i class="fas fa-chart-line"></i>
+                        </button>
+                        <button class="btn btn-outline-danger btn-sm" onclick="app.deleteHolding(${h.id})" title="삭제">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+    }
+
+    async handleAddHolding(e) {
+        e.preventDefault();
+
+        const ticker = document.getElementById('holding-ticker').value.trim();
+        const quantity = parseInt(document.getElementById('holding-quantity').value);
+        const avgPrice = parseFloat(document.getElementById('holding-avg-price').value);
+        const buyDate = document.getElementById('holding-buy-date').value;
+        const stopLossPct = parseFloat(document.getElementById('holding-stop-loss-pct').value) || null;
+        const takeProfitPct = parseFloat(document.getElementById('holding-take-profit-pct').value) || null;
+        const memo = document.getElementById('holding-memo').value.trim() || null;
+
+        if (!ticker || !quantity || !avgPrice || !buyDate) {
+            this.showNotification('필수 항목을 모두 입력해주세요', 'warning');
+            return;
+        }
+
+        try {
+            const response = await fetch(`${this.baseURL}/v1/holdings/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${this.token}`
+                },
+                body: JSON.stringify({
+                    ticker: ticker,
+                    quantity: quantity,
+                    avg_buy_price: avgPrice,
+                    buy_date: buyDate,
+                    stop_loss_percent: stopLossPct,
+                    take_profit_percent: takeProfitPct,
+                    memo: memo
+                })
+            });
+
+            if (response.ok) {
+                this.showNotification('보유종목이 추가되었습니다', 'success');
+                // 폼 초기화
+                document.getElementById('holding-add-form').reset();
+                document.getElementById('holding-buy-date').value = new Date().toISOString().split('T')[0];
+                // 목록 새로고침
+                await this.loadHoldings();
+                // 폼 접기
+                const collapseEl = document.getElementById('addHoldingForm');
+                const collapse = bootstrap.Collapse.getInstance(collapseEl);
+                if (collapse) collapse.hide();
+            } else {
+                const error = await response.json();
+                this.showNotification(error.detail || '보유종목 추가에 실패했습니다', 'error');
+            }
+        } catch (error) {
+            console.error('보유종목 추가 오류:', error);
+            this.showNotification('네트워크 오류가 발생했습니다', 'error');
+        }
+    }
+
+    async editHolding(holdingId) {
+        const holding = this.holdings.find(h => h.id === holdingId);
+        if (!holding) return;
+
+        const newStopLoss = prompt('손절 퍼센트를 입력하세요 (예: -5):', holding.stop_loss_percent || '');
+        const newTakeProfit = prompt('익절 퍼센트를 입력하세요 (예: 10):', holding.take_profit_percent || '');
+        const newMemo = prompt('메모를 입력하세요:', holding.memo || '');
+
+        const updateData = {};
+        if (newStopLoss !== null && newStopLoss !== '') {
+            updateData.stop_loss_percent = parseFloat(newStopLoss);
+        }
+        if (newTakeProfit !== null && newTakeProfit !== '') {
+            updateData.take_profit_percent = parseFloat(newTakeProfit);
+        }
+        if (newMemo !== null) {
+            updateData.memo = newMemo;
+        }
+
+        if (Object.keys(updateData).length === 0) {
+            return;
+        }
+
+        try {
+            const response = await fetch(`${this.baseURL}/v1/holdings/${holdingId}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${this.token}`
+                },
+                body: JSON.stringify(updateData)
+            });
+
+            if (response.ok) {
+                this.showNotification('보유종목이 수정되었습니다', 'success');
+                await this.loadHoldings();
+            } else {
+                const error = await response.json();
+                this.showNotification(error.detail || '보유종목 수정에 실패했습니다', 'error');
+            }
+        } catch (error) {
+            console.error('보유종목 수정 오류:', error);
+            this.showNotification('네트워크 오류가 발생했습니다', 'error');
+        }
+    }
+
+    async deleteHolding(holdingId) {
+        if (!confirm('정말로 이 보유종목을 삭제하시겠습니까?')) {
+            return;
+        }
+
+        try {
+            const response = await fetch(`${this.baseURL}/v1/holdings/${holdingId}`, {
+                method: 'DELETE',
+                headers: {
+                    'Authorization': `Bearer ${this.token}`
+                }
+            });
+
+            if (response.ok) {
+                this.showNotification('보유종목이 삭제되었습니다', 'success');
+                await this.loadHoldings();
+            } else {
+                const error = await response.json();
+                this.showNotification(error.detail || '보유종목 삭제에 실패했습니다', 'error');
+            }
+        } catch (error) {
+            console.error('보유종목 삭제 오류:', error);
+            this.showNotification('네트워크 오류가 발생했습니다', 'error');
+        }
+    }
+
+    // =============================================
+    // 매도 신호 관련 메서드
+    // =============================================
+
+    async checkAllSellSignals() {
+        if (!this.currentUser) {
+            this.showNotification('로그인이 필요합니다', 'warning');
+            return;
+        }
+
+        this.showLoading('holdings-loading', true);
+
+        try {
+            const response = await fetch(`${this.baseURL}/v1/sell-signals/check/${this.currentUser.id}`, {
+                headers: {
+                    'Authorization': `Bearer ${this.token}`
+                }
+            });
+
+            if (response.ok) {
+                const summary = await response.json();
+
+                // 캐시 업데이트
+                this.sellSignalsCache = {};
+                if (summary.holdings_with_signals) {
+                    summary.holdings_with_signals.forEach(hs => {
+                        this.sellSignalsCache[hs.holding.holding_id] = hs.signals;
+                    });
+                }
+
+                // 그리드 새로고침
+                this.displayHoldingsGrid();
+
+                // 결과 알림
+                const total = summary.critical_signals + summary.high_signals + summary.medium_signals;
+                if (total > 0) {
+                    this.showNotification(
+                        `${total}개의 매도 신호가 발견되었습니다. (긴급: ${summary.critical_signals}, 높음: ${summary.high_signals}, 중간: ${summary.medium_signals})`,
+                        summary.critical_signals > 0 ? 'error' : 'warning'
+                    );
+                } else {
+                    this.showNotification('현재 발생한 매도 신호가 없습니다.', 'success');
+                }
+            } else {
+                this.showNotification('매도 신호 확인에 실패했습니다', 'error');
+            }
+        } catch (error) {
+            console.error('매도 신호 확인 오류:', error);
+            this.showNotification('매도 신호 확인 중 오류가 발생했습니다', 'error');
+        } finally {
+            this.showLoading('holdings-loading', false);
+        }
+    }
+
+    async checkSellSignal(holdingId) {
+        this.showLoading('holdings-loading', true);
+
+        try {
+            const response = await fetch(`${this.baseURL}/v1/sell-signals/holding/${holdingId}`, {
+                headers: {
+                    'Authorization': `Bearer ${this.token}`
+                }
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                this.sellSignalsCache[holdingId] = data.signals;
+
+                // 그리드 새로고침
+                this.displayHoldingsGrid();
+
+                if (data.signals.length > 0) {
+                    this.showSellSignalDetail(holdingId);
+                } else {
+                    this.showNotification('현재 발생한 매도 신호가 없습니다.', 'info');
+                }
+            } else {
+                this.showNotification('매도 신호 확인에 실패했습니다', 'error');
+            }
+        } catch (error) {
+            console.error('매도 신호 확인 오류:', error);
+            this.showNotification('매도 신호 확인 중 오류가 발생했습니다', 'error');
+        } finally {
+            this.showLoading('holdings-loading', false);
+        }
+    }
+
+    showSellSignalDetail(holdingId) {
+        const holding = this.holdings.find(h => h.id === holdingId);
+        const signals = this.sellSignalsCache[holdingId] || [];
+
+        if (!holding) {
+            this.showNotification('보유종목 정보를 찾을 수 없습니다', 'error');
+            return;
+        }
+
+        const profitClass = holding.profit_loss_percent >= 0 ? 'text-success' : 'text-danger';
+        const profitSign = holding.profit_loss_percent >= 0 ? '+' : '';
+
+        let modalContent = `
+            <div class="mb-4">
+                <h5>${holding.ticker} - ${holding.company_name || 'N/A'}</h5>
+                <div class="row text-center">
+                    <div class="col">
+                        <div class="text-muted">현재가</div>
+                        <div class="fs-5 fw-bold">${holding.current_price ? holding.current_price.toLocaleString() + '원' : 'N/A'}</div>
+                    </div>
+                    <div class="col">
+                        <div class="text-muted">평균매수가</div>
+                        <div class="fs-5">${holding.avg_buy_price.toLocaleString()}원</div>
+                    </div>
+                    <div class="col">
+                        <div class="text-muted">수익률</div>
+                        <div class="fs-5 fw-bold ${profitClass}">
+                            ${profitSign}${holding.profit_loss_percent ? holding.profit_loss_percent.toFixed(2) : 0}%
+                        </div>
+                    </div>
+                    <div class="col">
+                        <div class="text-muted">보유수량</div>
+                        <div class="fs-5">${holding.quantity.toLocaleString()}주</div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        if (signals.length === 0) {
+            modalContent += `
+                <div class="alert alert-success">
+                    <i class="fas fa-check-circle"></i> 현재 발생한 매도 신호가 없습니다.
+                </div>
+            `;
+        } else {
+            modalContent += `
+                <h6><i class="fas fa-bell"></i> 감지된 매도 신호 (${signals.length}개)</h6>
+                <div class="table-responsive">
+                    <table class="table table-sm table-bordered">
+                        <thead class="table-light">
+                            <tr>
+                                <th>우선순위</th>
+                                <th>신호 유형</th>
+                                <th>신뢰도</th>
+                                <th>청산 비율</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+            `;
+
+            signals.forEach(s => {
+                let priorityBadge = '';
+                if (s.priority === 'CRITICAL') {
+                    priorityBadge = '<span class="badge bg-danger">CRITICAL</span>';
+                } else if (s.priority === 'HIGH') {
+                    priorityBadge = '<span class="badge bg-warning text-dark">HIGH</span>';
+                } else if (s.priority === 'MEDIUM') {
+                    priorityBadge = '<span class="badge bg-info">MEDIUM</span>';
+                } else {
+                    priorityBadge = '<span class="badge bg-secondary">LOW</span>';
+                }
+
+                modalContent += `
+                    <tr>
+                        <td>${priorityBadge}</td>
+                        <td>
+                            <strong>${s.signal_type}</strong><br>
+                            <small class="text-muted">${s.reason}</small><br>
+                            <small class="text-primary">${s.recommended_action}</small>
+                        </td>
+                        <td class="text-center">${(s.confidence * 100).toFixed(0)}%</td>
+                        <td class="text-center">${s.exit_percent}%</td>
+                    </tr>
+                `;
+            });
+
+            modalContent += `
+                        </tbody>
+                    </table>
+                </div>
+            `;
+
+            // 권고사항 요약
+            const criticalSignals = signals.filter(s => s.priority === 'CRITICAL');
+            const highSignals = signals.filter(s => s.priority === 'HIGH');
+
+            if (criticalSignals.length > 0) {
+                modalContent += `
+                    <div class="alert alert-danger">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <strong>긴급 조치 필요!</strong> ${criticalSignals.length}개의 긴급 신호가 발생했습니다.
+                        즉시 매도를 고려하세요.
+                    </div>
+                `;
+            } else if (highSignals.length > 0) {
+                modalContent += `
+                    <div class="alert alert-warning">
+                        <i class="fas fa-exclamation-circle"></i>
+                        <strong>주의!</strong> ${highSignals.length}개의 높은 우선순위 신호가 발생했습니다.
+                        부분 매도 또는 손절 조정을 고려하세요.
+                    </div>
+                `;
+            }
+        }
+
+        document.getElementById('sell-signal-modal-body').innerHTML = modalContent;
+
+        const modal = new bootstrap.Modal(document.getElementById('sellSignalModal'));
+        modal.show();
+    }
+
+    // =============================================
+    // 매수 실행 관련 메서드
+    // =============================================
+
+    openBuyModal(ticker, companyName, currentPrice, targetPrice, stopLossPrice) {
+        // 모달에 데이터 설정
+        document.getElementById('buy-modal-ticker').textContent = `${ticker} - ${companyName}`;
+        document.getElementById('buy-modal-price').textContent = currentPrice.toLocaleString() + '원';
+        document.getElementById('buy-modal-target').textContent = targetPrice.toLocaleString() + '원';
+        document.getElementById('buy-modal-stoploss').textContent = stopLossPrice.toLocaleString() + '원';
+
+        // hidden 필드에 값 저장
+        document.getElementById('buy-modal-ticker-value').value = ticker;
+        document.getElementById('buy-modal-price-value').value = currentPrice;
+        document.getElementById('buy-modal-target-value').value = targetPrice;
+        document.getElementById('buy-modal-stoploss-value').value = stopLossPrice;
+        document.getElementById('buy-modal-company-name').value = companyName;
+
+        // 입력 필드 초기화
+        document.getElementById('buy-modal-quantity').value = '';
+        document.getElementById('buy-modal-memo').value = '';
+        document.getElementById('buy-modal-total').textContent = '0원';
+
+        // 수량 변경 시 총액 계산
+        const quantityInput = document.getElementById('buy-modal-quantity');
+        quantityInput.oninput = () => {
+            const quantity = parseInt(quantityInput.value) || 0;
+            const total = quantity * currentPrice;
+            document.getElementById('buy-modal-total').textContent = total.toLocaleString() + '원';
+        };
+
+        // 모달 열기
+        const modal = new bootstrap.Modal(document.getElementById('buyExecuteModal'));
+        modal.show();
+    }
+
+    async executeBuy() {
+        const ticker = document.getElementById('buy-modal-ticker-value').value;
+        const currentPrice = parseFloat(document.getElementById('buy-modal-price-value').value);
+        const targetPrice = parseFloat(document.getElementById('buy-modal-target-value').value);
+        const stopLossPrice = parseFloat(document.getElementById('buy-modal-stoploss-value').value);
+        const quantity = parseInt(document.getElementById('buy-modal-quantity').value);
+        const memo = document.getElementById('buy-modal-memo').value;
+
+        if (!quantity || quantity < 1) {
+            this.showNotification('매수 수량을 입력해주세요', 'warning');
+            return;
+        }
+
+        // 손절/익절 퍼센트 계산
+        const stopLossPercent = ((stopLossPrice - currentPrice) / currentPrice * 100).toFixed(2);
+        const takeProfitPercent = ((targetPrice - currentPrice) / currentPrice * 100).toFixed(2);
+
+        try {
+            const response = await fetch(`${this.baseURL}/v1/holdings/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${this.token}`
+                },
+                body: JSON.stringify({
+                    ticker: ticker,
+                    quantity: quantity,
+                    avg_buy_price: currentPrice,
+                    buy_date: new Date().toISOString().split('T')[0],
+                    stop_loss_price: stopLossPrice,
+                    stop_loss_percent: parseFloat(stopLossPercent),
+                    take_profit_price: targetPrice,
+                    take_profit_percent: parseFloat(takeProfitPercent),
+                    memo: memo || `매수 신호 기반 매수 (목표: ${targetPrice.toLocaleString()}원)`
+                })
+            });
+
+            if (response.ok) {
+                // 모달 닫기
+                const modal = bootstrap.Modal.getInstance(document.getElementById('buyExecuteModal'));
+                modal.hide();
+
+                this.showNotification(
+                    `${ticker} ${quantity}주 매수가 보유종목에 등록되었습니다!`,
+                    'success'
+                );
+
+                // 보유종목 탭으로 이동
+                const holdingsTab = document.getElementById('holdings-tab');
+                const tabTrigger = new bootstrap.Tab(holdingsTab);
+                tabTrigger.show();
+
+                // 보유종목 새로고침
+                await this.loadHoldings();
+            } else {
+                const error = await response.json();
+                this.showNotification(error.detail || '매수 등록에 실패했습니다', 'error');
+            }
+        } catch (error) {
+            console.error('매수 실행 오류:', error);
+            this.showNotification('매수 실행 중 오류가 발생했습니다', 'error');
+        }
     }
 }
 

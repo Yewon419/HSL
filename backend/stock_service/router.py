@@ -28,6 +28,19 @@ class StockUpdate(BaseModel):
     ticker: str
 
 # 종목 관리 API 엔드포인트들
+
+@router.get("/latest-date")
+def get_latest_data_date(db: Session = Depends(get_db)):
+    """데이터베이스에 있는 최신 주가 데이터 날짜를 반환합니다."""
+    from sqlalchemy import func
+
+    result = db.query(func.max(models.StockPrice.date)).scalar()
+
+    if result:
+        return {"latest_date": result.strftime("%Y-%m-%d")}
+    else:
+        return {"latest_date": datetime.now().strftime("%Y-%m-%d")}
+
 @router.get("/list-with-indicators")
 def get_stocks_with_indicators(
     skip: int = Query(default=0, ge=0),

@@ -14,6 +14,8 @@ from ai_service.router import router as ai_router
 from indicators_service.router import router as indicators_router
 from screening_service.router import router as screening_router
 from trading_service.router import router as trading_router
+from holdings_service.router import router as holdings_router
+from sell_signal_service.router import router as sell_signal_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -43,6 +45,8 @@ app.include_router(ai_router, prefix="/api/v1/ai", tags=["ai"])
 app.include_router(indicators_router, prefix="/api/v1/indicators", tags=["indicators"])
 app.include_router(screening_router, prefix="/api/v1/screening", tags=["screening"])
 app.include_router(trading_router, tags=["trading"])
+app.include_router(holdings_router, prefix="/api/v1/holdings", tags=["holdings"])
+app.include_router(sell_signal_router, tags=["sell-signals"])
 
 # 정적 파일 서빙 설정
 frontend_dir = os.path.join(os.path.dirname(__file__), "frontend")

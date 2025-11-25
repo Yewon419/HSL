@@ -248,7 +248,7 @@ class UserAlert(Base):
 
 class IndustryCorrelation(Base):
     __tablename__ = "industry_correlations"
-    
+
     id = Column(Integer, primary_key=True, index=True)
     leader_ticker = Column(String(10), ForeignKey("stocks.ticker"), nullable=False)
     follower_ticker = Column(String(10), ForeignKey("stocks.ticker"), nullable=False)
@@ -258,3 +258,75 @@ class IndustryCorrelation(Base):
     valid_from = Column(Date, nullable=False)
     valid_until = Column(Date)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class Holding(Base):
+    """보유종목 모델 - 손절/익절 관리 포함"""
+    __tablename__ = "holdings"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    ticker = Column(String(10), ForeignKey("stocks.ticker"), nullable=False)
+    company_name = Column(String(200))  # 종목명 캐시
+    quantity = Column(Integer, nullable=False)  # 보유수량
+    avg_buy_price = Column(DECIMAL(10, 2), nullable=False)  # 평균매수가
+    buy_date = Column(Date, nullable=False)  # 최초 매수일
+
+    # 손절/익절 설정
+    stop_loss_price = Column(DECIMAL(10, 2))  # 손절가 (절대값)
+    stop_loss_percent = Column(DECIMAL(5, 2))  # 손절 퍼센트 (예: -5.00)
+    take_profit_price = Column(DECIMAL(10, 2))  # 익절가 (절대값)
+    take_profit_percent = Column(DECIMAL(5, 2))  # 익절 퍼센트 (예: 10.00)
+
+    # 추가 정보
+    memo = Column(Text)  # 메모
+    target_quantity = Column(Integer)  # 목표 수량 (추가 매수 계획)
+    is_active = Column(Boolean, default=True)  # 활성 상태
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+    # Relationships
+    user = relationship("User", backref="holdings")
+    stock = relationship("Stock", backref="holdings")
+
+
+class SellSignal(Base):
+    """매도 신호 모델 - ATS 전략 프레임워크 기반"""
+    __tablename__ = "sell_signals"
+
+    id = Column(Integer, primary_key=True, index=True)
+    holding_id = Column(Integer, ForeignKey("holdings.id"), nullable=False)
+    ticker = Column(String(10), ForeignKey("stocks.ticker"), nullable=False)
+
+    # 신호 정보
+    signal_type = Column(String(50), nullable=False)  # ATR_STOP, MACD_CROSS, FIBONACCI 등
+    priority = Column(String(20), nullable=False)  # CRITICAL, HIGH, MEDIUM, LOW
+    confidence = Column(DECIMAL(4, 2))  # 0.00 ~ 1.00
+    reason = Column(Text)
+    recommended_action = Column(Text)
+
+    # 매도 정보
+    exit_percent = Column(DECIMAL(5, 2))  # 청산 비율 (0~100%)
+    target_price = Column(DECIMAL(10, 2))  # 목표 매도가
+    current_price = Column(DECIMAL(10, 2))  # 신호 발생 시점 현재가
+    total_score = Column(DECIMAL(5, 2))  # 종합 점수
+
+    # 시장 상황
+    market_regime = Column(String(20))  # TRENDING, RANGING, VOLATILE
+    rsi = Column(DECIMAL(6, 2))
+    macd = Column(DECIMAL(10, 4))
+    volume_ratio = Column(DECIMAL(6, 2))  # 평균 대비 거래량 비율
+
+    # 상태 관리
+    status = Column(String(20), default="PENDING")  # PENDING, NOTIFIED, EXECUTED, EXPIRED, CANCELLED
+    notified_at = Column(DateTime(timezone=True))
+    executed_at = Column(DateTime(timezone=True))
+    execution_price = Column(DECIMAL(10, 2))  # 실제 체결가
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+    # Relationships
+    holding = relationship("Holding", backref="sell_signals")
+    stock = relationship("Stock", backref="sell_signals")
