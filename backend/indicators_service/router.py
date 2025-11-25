@@ -9,6 +9,20 @@ from sqlalchemy import text
 from typing import List, Optional, Dict, Any
 from datetime import datetime, date
 import json
+import math
+
+
+def safe_float(value, default=0):
+    """NaN/None을 안전하게 처리하여 JSON 호환 값 반환"""
+    if value is None:
+        return default
+    try:
+        f = float(value)
+        if math.isnan(f) or math.isinf(f):
+            return default
+        return f
+    except (ValueError, TypeError):
+        return default
 
 from database import get_db
 from user_service.auth import get_current_user
@@ -260,11 +274,17 @@ def get_indicators_grid(
                 s.country,
                 ti.date,
                 sp.close_price,
+                sp.high_price,
+                sp.low_price,
+                sp.volume,
                 ti.rsi,
                 ti.ma_20,
                 ti.ma_50,
                 ti.ma_200,
                 ti.macd,
+                ti.macd_signal,
+                ti.stoch_k,
+                ti.stoch_d,
                 ti.bollinger_upper,
                 ti.bollinger_lower
             FROM technical_indicators ti
@@ -282,14 +302,23 @@ def get_indicators_grid(
                 "sector": row.sector,
                 "country": row.country,
                 "date": str(row.date),
-                "close": float(row.close_price) if row.close_price else 0,
-                "rsi": float(row.rsi) if row.rsi else 0,
-                "ma_20": float(row.ma_20) if row.ma_20 else 0,
-                "ma_50": float(row.ma_50) if row.ma_50 else 0,
-                "ma_200": float(row.ma_200) if row.ma_200 else 0,
-                "macd": float(row.macd) if row.macd else 0,
-                "bb_upper": float(row.bollinger_upper) if row.bollinger_upper else 0,
-                "bb_lower": float(row.bollinger_lower) if row.bollinger_lower else 0
+                "close": safe_float(row.close_price),
+                "high": safe_float(row.high_price),
+                "low": safe_float(row.low_price),
+                "volume": safe_float(row.volume) if row.volume else 0,
+                "rsi": safe_float(row.rsi),
+                "ma_20": safe_float(row.ma_20),
+                "ma_50": safe_float(row.ma_50),
+                "ma_200": safe_float(row.ma_200),
+                "macd": safe_float(row.macd),
+                "macd_signal": safe_float(row.macd_signal),
+                "stoch_k": safe_float(row.stoch_k),
+                "stoch_d": safe_float(row.stoch_d),
+                "bb_upper": safe_float(row.bollinger_upper),
+                "bb_lower": safe_float(row.bollinger_lower),
+                "foreign_net": 0,
+                "institution_net": 0,
+                "individual_net": 0
             })
 
         return indicators

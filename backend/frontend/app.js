@@ -19,7 +19,8 @@ class StockTradingApp {
             try {
                 await this.getCurrentUser();
                 this.showMainApp();
-                await this.loadStocks();
+                await this.loadStockList();  // 자동완성용 종목 목록 로드
+                await this.loadIndicatorsGrid();
             } catch (error) {
                 console.error('토큰 검증 실패:', error);
                 // 토큰 유효성 검사 실패 - 로그인 페이지로 이동
@@ -53,12 +54,6 @@ class StockTradingApp {
         // 로그아웃
         document.getElementById('logout-btn').addEventListener('click', () => this.logout());
 
-        // 종목 추가 폼
-        document.getElementById('add-stock-form').addEventListener('submit', (e) => this.handleAddStock(e));
-
-        // 새로고침 버튼
-        document.getElementById('refresh-stocks').addEventListener('click', () => this.loadStocks());
-
         // 차트 관련 이벤트
         document.getElementById('load-chart-btn').addEventListener('click', () => this.loadChart());
 
@@ -81,8 +76,17 @@ class StockTradingApp {
         document.getElementById('update-chart-btn').addEventListener('click', () => this.updateChartWithIndicators());
 
         // 지표 분석 관련 이벤트
-        document.getElementById('apply-indicator-filter').addEventListener('click', () => this.loadIndicatorsGrid());
+        document.getElementById('apply-indicator-filter').addEventListener('click', () => {
+            this.indicatorCurrentPage = 1;
+            this.loadIndicatorsGrid();
+        });
         document.getElementById('refresh-indicators').addEventListener('click', () => this.loadIndicatorsGrid());
+        document.getElementById('reset-indicator-filter')?.addEventListener('click', () => this.resetIndicatorFilters());
+
+        // 지표 분석 정렬 이벤트
+        document.querySelectorAll('#indicators-pane th.sortable').forEach(th => {
+            th.addEventListener('click', () => this.sortIndicators(th.dataset.sort));
+        });
 
         // 매매 신호 관련 이벤트
         document.getElementById('apply-signal-filter').addEventListener('click', () => this.loadTradingSignals());
@@ -196,9 +200,8 @@ class StockTradingApp {
         document.getElementById('logout-btn').style.display = 'block';
     }
 
-    async loadStocks() {
-        this.showLoading('stocks-loading', true);
-
+    async loadStockList() {
+        // 종목 목록만 로드 (자동완성용)
         try {
             const response = await fetch(`${this.baseURL}/stocks/?limit=1000`, {
                 headers: {
@@ -208,22 +211,26 @@ class StockTradingApp {
 
             if (response.ok) {
                 this.stocks = await response.json();
-                this.displayStocks();
                 this.updateTickerSelects();
-            } else {
-                this.showNotification('종목을 불러올 수 없습니다', 'error');
             }
         } catch (error) {
-            console.error('종목 로드 오류:', error);
-            this.showNotification('네트워크 오류가 발생했습니다', 'error');
-        } finally {
-            this.showLoading('stocks-loading', false);
+            console.error('종목 목록 로드 오류:', error);
         }
     }
 
+    async loadStocks() {
+        // 하위 호환성 유지
+        await this.loadStockList();
+    }
+
     displayStocks() {
+        // 더 이상 사용하지 않음 (종목 관리 탭 제거됨)
+    }
+
+    _displayStocksLegacy() {
         const stocksList = document.getElementById('stocks-list');
-        
+        if (!stocksList) return;
+
         if (this.stocks.length === 0) {
             stocksList.innerHTML = '<p class="text-muted">등록된 종목이 없습니다.</p>';
             return;
@@ -1011,14 +1018,57 @@ class StockTradingApp {
         const countryFilter = document.getElementById('indicator-country-filter').value;
         const tickerFilter = document.getElementById('indicator-ticker-filter').value.toLowerCase();
         const sectorFilter = document.getElementById('indicator-sector-filter').value;
+        const trendFilter = document.getElementById('indicator-trend-filter')?.value || '';
+        const rsiFilter = document.getElementById('indicator-rsi-filter')?.value || '';
+        const macdFilter = document.getElementById('indicator-macd-filter')?.value || '';
+        const stochFilter = document.getElementById('indicator-stoch-filter')?.value || '';
 
         let filteredIndicators = indicators.filter(ind => {
             if (countryFilter && ind.country !== countryFilter) return false;
             if (tickerFilter && !(ind.ticker.toLowerCase().includes(tickerFilter) ||
                 (ind.company_name && ind.company_name.toLowerCase().includes(tickerFilter)))) return false;
             if (sectorFilter && ind.sector !== sectorFilter) return false;
+
+            // 추세 필터
+            const trend = this.calculateTrend(ind);
+            if (trendFilter && trend !== trendFilter) return false;
+
+            // RSI 필터
+            if (rsiFilter) {
+                if (rsiFilter === 'oversold' && ind.rsi >= 30) return false;
+                if (rsiFilter === 'overbought' && ind.rsi <= 70) return false;
+                if (rsiFilter === 'neutral' && (ind.rsi < 30 || ind.rsi > 70)) return false;
+            }
+
+            // MACD 필터
+            if (macdFilter) {
+                if (macdFilter === 'bullish' && ind.macd <= 0) return false;
+                if (macdFilter === 'bearish' && ind.macd >= 0) return false;
+            }
+
+            // Stochastic 필터
+            if (stochFilter && ind.stoch_k && ind.stoch_d) {
+                if (stochFilter === 'golden' && ind.stoch_k <= ind.stoch_d) return false;
+                if (stochFilter === 'dead' && ind.stoch_k >= ind.stoch_d) return false;
+            }
+
             return true;
         });
+
+        // 정렬 적용
+        if (this.indicatorSortBy) {
+            filteredIndicators.sort((a, b) => {
+                let aVal = a[this.indicatorSortBy] || 0;
+                let bVal = b[this.indicatorSortBy] || 0;
+                if (typeof aVal === 'string') {
+                    return this.indicatorSortOrder === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
+                }
+                return this.indicatorSortOrder === 'asc' ? aVal - bVal : bVal - aVal;
+            });
+        }
+
+        // 총 개수 표시
+        document.getElementById('indicators-count').textContent = `총 ${filteredIndicators.length}개`;
 
         if (filteredIndicators.length === 0) {
             tbody.innerHTML = `
@@ -1028,28 +1078,280 @@ class StockTradingApp {
                     </td>
                 </tr>
             `;
+            document.getElementById('indicators-pagination').innerHTML = '';
             return;
         }
 
-        tbody.innerHTML = filteredIndicators.map(ind => `
-            <tr>
-                <td>${ind.country || 'KR'}</td>
+        // 페이지네이션
+        const pageSize = 50;
+        const totalPages = Math.ceil(filteredIndicators.length / pageSize);
+        this.indicatorCurrentPage = Math.min(this.indicatorCurrentPage || 1, totalPages);
+        const startIdx = (this.indicatorCurrentPage - 1) * pageSize;
+        const pageData = filteredIndicators.slice(startIdx, startIdx + pageSize);
+
+        tbody.innerHTML = pageData.map(ind => {
+            const trend = this.calculateTrend(ind);
+            const trendClass = trend === '정배열' ? 'text-success' : trend === '역배열' ? 'text-danger' : 'text-muted';
+            const rsiClass = ind.rsi > 70 ? 'text-danger fw-bold' : ind.rsi < 30 ? 'text-success fw-bold' : '';
+            const macdClass = ind.macd > 0 ? 'text-success' : ind.macd < 0 ? 'text-danger' : '';
+            const bbPosition = this.getBollingerPosition(ind);
+            const stochSignal = this.getStochSignal(ind);
+            const foreignNet = this.formatNetTrade(ind.foreign_net);
+            const institutionNet = this.formatNetTrade(ind.institution_net);
+            const individualNet = this.formatNetTrade(ind.individual_net);
+
+            return `
+            <tr style="cursor: pointer;" onclick="app.showStockDetail('${ind.ticker}')">
+                <td><span class="badge ${ind.country === 'KR' ? 'bg-primary' : 'bg-success'}">${ind.country || 'KR'}</span></td>
                 <td><strong>${ind.ticker}</strong></td>
                 <td>${ind.company_name || 'N/A'}</td>
-                <td>${ind.sector || 'N/A'}</td>
-                <td>${ind.date || 'N/A'}</td>
-                <td class="text-end">${(ind.close || 0).toLocaleString()}원</td>
-                <td class="text-end ${ind.rsi > 70 ? 'text-danger' : ind.rsi < 30 ? 'text-success' : ''}">${(ind.rsi || 0).toFixed(2)}</td>
-                <td class="text-end">${(ind.ma_20 || 0).toLocaleString()}</td>
-                <td class="text-end">${(ind.ma_50 || 0).toLocaleString()}</td>
-                <td class="text-end">${(ind.ma_200 || 0).toLocaleString()}</td>
-                <td class="text-end">${(ind.macd || 0).toFixed(2)}</td>
-                <td class="text-end">${(ind.bb_position || 0).toFixed(2)}</td>
+                <td><small>${ind.sector || '-'}</small></td>
+                <td class="text-end">${(ind.close || 0).toLocaleString()}</td>
+                <td class="text-end">${(ind.high || 0).toLocaleString()}</td>
+                <td class="text-end">${(ind.low || 0).toLocaleString()}</td>
+                <td class="${trendClass}">${trend}</td>
+                <td class="text-end"><small>${this.formatVolume(ind.volume)}</small></td>
+                <td class="text-end ${rsiClass}">${(ind.rsi || 0).toFixed(1)}</td>
+                <td class="text-end ${macdClass}">${(ind.macd || 0).toFixed(2)}</td>
+                <td>${stochSignal}</td>
+                <td>${bbPosition}</td>
+                <td class="text-end">${foreignNet}</td>
+                <td class="text-end">${institutionNet}</td>
+                <td class="text-end">${individualNet}</td>
             </tr>
-        `).join('');
+        `}).join('');
+
+        // 페이지네이션 UI
+        this.renderIndicatorPagination(totalPages);
 
         // 업종 필터 옵션 동적 생성
         this.updateIndicatorSectorFilter(indicators);
+    }
+
+    calculateTrend(ind) {
+        if (ind.ma_20 && ind.ma_50) {
+            if (ind.ma_20 > ind.ma_50) return '정배열';
+            if (ind.ma_20 < ind.ma_50) return '역배열';
+        }
+        return '-';
+    }
+
+    formatVolume(volume) {
+        if (!volume) return '-';
+        if (volume >= 1000000) return (volume / 1000000).toFixed(1) + 'M';
+        if (volume >= 1000) return (volume / 1000).toFixed(0) + 'K';
+        return volume.toLocaleString();
+    }
+
+    getBollingerPosition(ind) {
+        if (!ind.close || !ind.bb_upper || !ind.bb_lower) return '-';
+        if (ind.close >= ind.bb_upper) return '<span class="badge bg-danger">상단</span>';
+        if (ind.close <= ind.bb_lower) return '<span class="badge bg-success">하단</span>';
+        return '<span class="badge bg-secondary">중간</span>';
+    }
+
+    getStochSignal(ind) {
+        if (!ind.stoch_k || !ind.stoch_d) return '-';
+        const isGolden = ind.stoch_k > ind.stoch_d;
+        const signalClass = isGolden ? 'text-success' : 'text-danger';
+        const signalText = isGolden ? '골든' : '데드';
+        return `<small class="${signalClass}">${ind.stoch_k.toFixed(0)}/${signalText}</small>`;
+    }
+
+    formatNetTrade(value) {
+        if (!value || value === 0) return '<small class="text-muted">-</small>';
+        const formatted = Math.abs(value) >= 100000000
+            ? (value / 100000000).toFixed(1) + '억'
+            : Math.abs(value) >= 10000
+                ? (value / 10000).toFixed(0) + '만'
+                : value.toLocaleString();
+        const colorClass = value > 0 ? 'text-danger' : 'text-primary';
+        const sign = value > 0 ? '+' : '';
+        return `<small class="${colorClass}">${sign}${formatted}</small>`;
+    }
+
+    renderIndicatorPagination(totalPages) {
+        const pagination = document.getElementById('indicators-pagination');
+        if (totalPages <= 1) {
+            pagination.innerHTML = '';
+            return;
+        }
+
+        let html = '';
+        const current = this.indicatorCurrentPage;
+
+        html += `<li class="page-item ${current === 1 ? 'disabled' : ''}">
+            <a class="page-link" href="#" onclick="app.goIndicatorPage(${current - 1}); return false;">이전</a>
+        </li>`;
+
+        for (let i = 1; i <= Math.min(totalPages, 10); i++) {
+            html += `<li class="page-item ${i === current ? 'active' : ''}">
+                <a class="page-link" href="#" onclick="app.goIndicatorPage(${i}); return false;">${i}</a>
+            </li>`;
+        }
+
+        html += `<li class="page-item ${current === totalPages ? 'disabled' : ''}">
+            <a class="page-link" href="#" onclick="app.goIndicatorPage(${current + 1}); return false;">다음</a>
+        </li>`;
+
+        pagination.innerHTML = html;
+    }
+
+    goIndicatorPage(page) {
+        this.indicatorCurrentPage = page;
+        this.loadIndicatorsGrid();
+    }
+
+    showStockDetail(ticker) {
+        // 모달로 30일 데이터 표시
+        this.currentModalTicker = ticker;
+        this.loadMonthlyData(ticker);
+    }
+
+    async loadMonthlyData(ticker) {
+        const modal = new bootstrap.Modal(document.getElementById('monthlyDataModal'));
+        modal.show();
+
+        document.getElementById('monthly-loading').style.display = 'block';
+        document.getElementById('monthly-data-body').innerHTML = '';
+
+        try {
+            // 종목 정보 가져오기
+            const stockResponse = await fetch(`${this.baseURL}/stocks/${ticker}`);
+            const stockInfo = stockResponse.ok ? await stockResponse.json() : {};
+            const companyName = stockInfo.company_name || ticker;
+
+            document.getElementById('monthly-modal-title').textContent = `${ticker} - ${companyName} (30일)`;
+
+            // 기술적 지표 데이터 가져오기
+            const indicatorsResponse = await fetch(`${this.baseURL}/stocks/${ticker}/indicators?days=30`, {
+                headers: { 'Authorization': `Bearer ${this.token}` }
+            });
+
+            if (!indicatorsResponse.ok) throw new Error('지표 데이터 로드 실패');
+            const indicators = await indicatorsResponse.json();
+
+            // 주가 데이터 가져오기
+            const pricesResponse = await fetch(`${this.baseURL}/stocks/${ticker}/prices?days=30`, {
+                headers: { 'Authorization': `Bearer ${this.token}` }
+            });
+            const prices = pricesResponse.ok ? await pricesResponse.json() : [];
+
+            // 투자자 매매 데이터 가져오기
+            const investorResponse = await fetch(`${this.baseURL}/stocks/${ticker}/investor-trades?days=30`, {
+                headers: { 'Authorization': `Bearer ${this.token}` }
+            });
+            const investors = investorResponse.ok ? await investorResponse.json() : [];
+
+            // 날짜별로 데이터 병합
+            const mergedData = indicators.map(ind => {
+                const priceData = prices.find(p => p.date === ind.date);
+                const investorData = investors.find(i => i.date === ind.date);
+                return {
+                    date: ind.date,
+                    close: priceData?.close,
+                    high: priceData?.high,
+                    low: priceData?.low,
+                    volume: priceData?.volume,
+                    rsi: ind.rsi,
+                    macd: ind.macd,
+                    stoch_k: ind.stoch_k,
+                    stoch_d: ind.stoch_d,
+                    bollinger_upper: ind.bollinger_upper,
+                    bollinger_lower: ind.bollinger_lower,
+                    foreign_net: investorData?.foreign_net || (investorData?.foreign_buy - investorData?.foreign_sell),
+                    institution_net: investorData?.institution_net || (investorData?.institution_buy - investorData?.institution_sell)
+                };
+            }).sort((a, b) => new Date(b.date) - new Date(a.date));
+
+            this.displayMonthlyData(mergedData);
+
+        } catch (error) {
+            console.error('한달 데이터 로드 오류:', error);
+            document.getElementById('monthly-data-body').innerHTML = `
+                <tr><td colspan="11" class="text-center text-danger py-4">데이터 로드 실패: ${error.message}</td></tr>
+            `;
+        } finally {
+            document.getElementById('monthly-loading').style.display = 'none';
+        }
+    }
+
+    displayMonthlyData(data) {
+        const tbody = document.getElementById('monthly-data-body');
+
+        if (data.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="11" class="text-center py-4">데이터가 없습니다</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = data.map(row => {
+            const rsiClass = row.rsi > 70 ? 'text-danger' : row.rsi < 30 ? 'text-success' : '';
+            const macdClass = row.macd > 0 ? 'text-success' : row.macd < 0 ? 'text-danger' : '';
+            const stochSignal = row.stoch_k && row.stoch_d
+                ? `<span class="${row.stoch_k > row.stoch_d ? 'text-success' : 'text-danger'}">${row.stoch_k?.toFixed(0) || '-'}</span>`
+                : '-';
+            const bbPosition = this.getBollingerPositionSimple(row);
+
+            return `
+                <tr>
+                    <td>${row.date}</td>
+                    <td class="text-end">${row.close?.toLocaleString() || '-'}</td>
+                    <td class="text-end">${row.high?.toLocaleString() || '-'}</td>
+                    <td class="text-end">${row.low?.toLocaleString() || '-'}</td>
+                    <td class="text-end">${this.formatVolume(row.volume)}</td>
+                    <td class="text-end ${rsiClass}">${row.rsi?.toFixed(1) || '-'}</td>
+                    <td class="text-end ${macdClass}">${row.macd?.toFixed(2) || '-'}</td>
+                    <td class="text-center">${stochSignal}</td>
+                    <td class="text-center">${bbPosition}</td>
+                    <td class="text-end">${this.formatNetTrade(row.foreign_net)}</td>
+                    <td class="text-end">${this.formatNetTrade(row.institution_net)}</td>
+                </tr>
+            `;
+        }).join('');
+    }
+
+    getBollingerPositionSimple(row) {
+        if (!row.close || !row.bollinger_upper || !row.bollinger_lower) return '-';
+        if (row.close >= row.bollinger_upper) return '<span class="badge bg-danger">상</span>';
+        if (row.close <= row.bollinger_lower) return '<span class="badge bg-success">하</span>';
+        return '<span class="badge bg-secondary">중</span>';
+    }
+
+    goToChartFromModal() {
+        // 모달 닫기
+        const modal = bootstrap.Modal.getInstance(document.getElementById('monthlyDataModal'));
+        modal.hide();
+
+        // 차트 탭으로 이동
+        const chartTab = document.getElementById('charts-tab');
+        chartTab.click();
+        document.getElementById('chart-ticker-select').value = this.currentModalTicker;
+        this.loadChart(this.currentModalTicker);
+    }
+
+    sortIndicators(sortBy) {
+        if (this.indicatorSortBy === sortBy) {
+            this.indicatorSortOrder = this.indicatorSortOrder === 'asc' ? 'desc' : 'asc';
+        } else {
+            this.indicatorSortBy = sortBy;
+            this.indicatorSortOrder = 'asc';
+        }
+        this.loadIndicatorsGrid();
+    }
+
+    resetIndicatorFilters() {
+        document.getElementById('indicator-country-filter').value = '';
+        document.getElementById('indicator-ticker-filter').value = '';
+        document.getElementById('indicator-date-filter').value = '';
+        document.getElementById('indicator-sector-filter').value = '';
+        document.getElementById('indicator-trend-filter').value = '';
+        document.getElementById('indicator-rsi-filter').value = '';
+        document.getElementById('indicator-macd-filter').value = '';
+        document.getElementById('indicator-stoch-filter').value = '';
+        this.indicatorCurrentPage = 1;
+        this.indicatorSortBy = null;
+        this.indicatorSortOrder = 'asc';
+        this.loadIndicatorsGrid();
     }
 
     updateIndicatorSectorFilter(indicators) {

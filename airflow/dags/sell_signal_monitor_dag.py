@@ -64,7 +64,7 @@ dag = DAG(
 
 # Type A 설정 (리스크 관리)
 FIXED_STOP_LOSS_PCT = -5.0  # 고정 손절 %
-TIME_STOP_DAYS = 5  # Time Stop 일수
+TIME_STOP_DAYS = 10  # Time Stop 일수 (5일 → 10일로 변경, 스윙 트레이딩 기준)
 
 # Type B 설정 (추세 종료)
 RSI_OVERBOUGHT = 70
@@ -101,39 +101,54 @@ def task_fetch_holdings(**context):
         engine = get_db_engine()
 
         query = """
+            WITH latest_data AS (
+                SELECT
+                    h.id as holding_id,
+                    h.user_id,
+                    h.ticker,
+                    h.company_name,
+                    h.quantity,
+                    h.avg_buy_price,
+                    h.buy_date,
+                    h.stop_loss_price,
+                    h.stop_loss_percent,
+                    h.take_profit_price,
+                    h.take_profit_percent,
+                    sp.close_price as current_price,
+                    sp.volume,
+                    sp.date as price_date,
+                    ti.rsi,
+                    ti.macd,
+                    ti.macd_signal,
+                    ti.macd_histogram,
+                    ti.ma_20,
+                    ti.ma_50,
+                    ti.ma_200,
+                    ti.bollinger_upper,
+                    ti.bollinger_lower,
+                    u.email as user_email
+                FROM holdings h
+                JOIN users u ON h.user_id = u.id
+                JOIN stock_prices sp ON h.ticker = sp.ticker
+                LEFT JOIN technical_indicators ti ON h.ticker = ti.ticker AND sp.date = ti.date
+                WHERE h.is_active = true
+                    AND sp.date = (
+                        SELECT MAX(date) FROM stock_prices WHERE ticker = h.ticker
+                    )
+            )
             SELECT
-                h.id as holding_id,
-                h.user_id,
-                h.ticker,
-                h.company_name,
-                h.quantity,
-                h.avg_buy_price,
-                h.buy_date,
-                h.stop_loss_price,
-                h.stop_loss_percent,
-                h.take_profit_price,
-                h.take_profit_percent,
-                sp.close_price as current_price,
-                sp.volume,
-                ti.rsi,
-                ti.macd,
-                ti.macd_signal,
-                ti.macd_histogram,
-                ti.ma_20,
-                ti.ma_50,
-                ti.ma_200,
-                ti.bollinger_upper,
-                ti.bollinger_lower,
-                u.email as user_email
-            FROM holdings h
-            JOIN users u ON h.user_id = u.id
-            JOIN stock_prices sp ON h.ticker = sp.ticker
-            LEFT JOIN technical_indicators ti ON h.ticker = ti.ticker AND sp.date = ti.date
-            WHERE h.is_active = true
-                AND sp.date = (
-                    SELECT MAX(date) FROM stock_prices WHERE ticker = h.ticker
+                ld.*,
+                prev_ti.ma_20 as prev_ma_20,
+                prev_ti.ma_50 as prev_ma_50,
+                prev_ti.macd as prev_macd,
+                prev_ti.macd_signal as prev_macd_signal
+            FROM latest_data ld
+            LEFT JOIN technical_indicators prev_ti ON ld.ticker = prev_ti.ticker
+                AND prev_ti.date = (
+                    SELECT MAX(date) FROM technical_indicators
+                    WHERE ticker = ld.ticker AND date < ld.price_date
                 )
-            ORDER BY h.user_id, h.ticker
+            ORDER BY ld.user_id, ld.ticker
         """
 
         holdings = pd.read_sql(query, engine)
@@ -293,29 +308,65 @@ def detect_signals_for_holding(holding: pd.Series) -> list:
     ma_50 = holding.get('ma_50')
     volume = holding.get('volume')
 
-    # B1: MACD 데드크로스 (양수 영역)
-    if pd.notna(macd) and pd.notna(macd_signal):
-        if macd < macd_signal and macd > 0:
-            signals.append({
-                'signal_type': 'MACD_CROSS',
-                'priority': 'HIGH',
-                'confidence': 0.75,
-                'reason': f"MACD 데드크로스: MACD={macd:.4f} < Signal={macd_signal:.4f} (양수 영역)",
-                'recommended_action': '부분 매도 또는 손절 타이트하게',
-                'exit_percent': 50.0
-            })
+    # 이전 날 데이터 (크로스 시점 감지용)
+    prev_macd = holding.get('prev_macd')
+    prev_macd_signal = holding.get('prev_macd_signal')
+    prev_ma_20 = holding.get('prev_ma_20')
+    prev_ma_50 = holding.get('prev_ma_50')
 
-    # B2: MA 데드크로스
+    # B1: MACD 데드크로스 (양수 영역) - 크로스 시점만 감지
+    if pd.notna(macd) and pd.notna(macd_signal):
+        # 현재: MACD < Signal (데드크로스 상태)
+        if macd < macd_signal and macd > 0:
+            # 이전 데이터가 있으면 크로스 시점인지 확인
+            if pd.notna(prev_macd) and pd.notna(prev_macd_signal):
+                # 이전에는 MACD >= Signal이었는데 지금은 MACD < Signal (방금 크로스)
+                if prev_macd >= prev_macd_signal:
+                    signals.append({
+                        'signal_type': 'MACD_CROSS',
+                        'priority': 'HIGH',
+                        'confidence': 0.85,  # 크로스 시점이므로 신뢰도 상향
+                        'reason': f"MACD 데드크로스 발생: MACD={macd:.4f} < Signal={macd_signal:.4f} (양수 영역, 방금 크로스)",
+                        'recommended_action': '부분 매도 또는 손절 타이트하게',
+                        'exit_percent': 50.0
+                    })
+            else:
+                # 이전 데이터 없으면 기존 로직 (하위 호환)
+                signals.append({
+                    'signal_type': 'MACD_CROSS',
+                    'priority': 'HIGH',
+                    'confidence': 0.70,
+                    'reason': f"MACD 데드크로스 상태: MACD={macd:.4f} < Signal={macd_signal:.4f} (양수 영역)",
+                    'recommended_action': '부분 매도 또는 손절 타이트하게',
+                    'exit_percent': 50.0
+                })
+
+    # B2: MA 데드크로스 - 크로스 시점만 감지
     if pd.notna(ma_20) and pd.notna(ma_50):
+        # 현재: MA20 < MA50 (데드크로스 상태)
         if ma_20 < ma_50:
-            signals.append({
-                'signal_type': 'MA_CROSS',
-                'priority': 'HIGH',
-                'confidence': 0.70,
-                'reason': f"MA 데드크로스: MA20={ma_20:,.0f} < MA50={ma_50:,.0f}",
-                'recommended_action': '추세 전환 - 부분 매도 권고',
-                'exit_percent': 50.0
-            })
+            # 이전 데이터가 있으면 크로스 시점인지 확인
+            if pd.notna(prev_ma_20) and pd.notna(prev_ma_50):
+                # 이전에는 MA20 >= MA50이었는데 지금은 MA20 < MA50 (방금 크로스)
+                if prev_ma_20 >= prev_ma_50:
+                    signals.append({
+                        'signal_type': 'MA_CROSS',
+                        'priority': 'HIGH',
+                        'confidence': 0.80,  # 크로스 시점이므로 신뢰도 상향
+                        'reason': f"MA 데드크로스 발생: MA20={ma_20:,.0f} < MA50={ma_50:,.0f} (방금 크로스)",
+                        'recommended_action': '추세 전환 - 부분 매도 권고',
+                        'exit_percent': 50.0
+                    })
+            else:
+                # 이전 데이터 없으면 이미 크로스된 상태 → 낮은 우선순위로
+                signals.append({
+                    'signal_type': 'MA_CROSS',
+                    'priority': 'MEDIUM',  # 이미 진행된 크로스는 MEDIUM으로
+                    'confidence': 0.55,
+                    'reason': f"MA 데드크로스 진행 중: MA20={ma_20:,.0f} < MA50={ma_50:,.0f}",
+                    'recommended_action': '추세 전환 상태 - 모니터링',
+                    'exit_percent': 25.0
+                })
 
     # B3: RSI 70 하향 돌파 확인 (과매수 영역에서 이탈)
     if pd.notna(rsi) and 65 <= rsi < 70 and profit_loss_pct is not None and profit_loss_pct > 0:
@@ -648,15 +699,11 @@ def send_email_notification(email: str, message: str):
     from email.mime.text import MIMEText
     from email.mime.multipart import MIMEMultipart
 
-    # 환경 변수에서 설정 로드
-    smtp_host = os.getenv('SMTP_HOST', 'smtp.gmail.com')
-    smtp_port = int(os.getenv('SMTP_PORT', '587'))
-    smtp_user = os.getenv('SMTP_USER', '')
-    smtp_password = os.getenv('SMTP_PASSWORD', '')
-
-    if not smtp_user or not smtp_password:
-        logger.warning("SMTP 설정이 없습니다. 이메일 발송을 건너뜁니다.")
-        return
+    # 이메일 설정 (email_report_dag.py와 동일)
+    smtp_host = 'smtp.gmail.com'
+    smtp_port = 587
+    smtp_user = 'windgarden419@gmail.com'
+    smtp_password = 'qcchscmwicwaeyzt'
 
     try:
         msg = MIMEMultipart('alternative')

@@ -121,18 +121,13 @@
             <!-- 탭 네비게이션 -->
             <ul class="nav nav-tabs mb-4" id="mainTabs" role="tablist">
                 <li class="nav-item" role="presentation">
-                    <button class="nav-link active" id="stocks-tab" data-bs-toggle="tab" data-bs-target="#stocks-pane" type="button" role="tab">
-                        <i class="fas fa-list"></i> 종목 관리
+                    <button class="nav-link active" id="indicators-tab" data-bs-toggle="tab" data-bs-target="#indicators-pane" type="button" role="tab">
+                        <i class="fas fa-calculator"></i> 지표 분석
                     </button>
                 </li>
                 <li class="nav-item" role="presentation">
                     <button class="nav-link" id="charts-tab" data-bs-toggle="tab" data-bs-target="#charts-pane" type="button" role="tab">
                         <i class="fas fa-chart-line"></i> 기술적 지표 차트
-                    </button>
-                </li>
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link" id="indicators-tab" data-bs-toggle="tab" data-bs-target="#indicators-pane" type="button" role="tab">
-                        <i class="fas fa-calculator"></i> 지표 분석
                     </button>
                 </li>
                 <li class="nav-item" role="presentation">
@@ -144,11 +139,6 @@
                     <button class="nav-link" id="holdings-tab" data-bs-toggle="tab" data-bs-target="#holdings-pane" type="button" role="tab">
                         <i class="fas fa-wallet"></i> 보유종목
                     </button>
-                </li>
-                <li class="nav-item" role="presentation">
-                    <a class="nav-link" href="/stock_grid.html" target="_blank">
-                        <i class="fas fa-table"></i> 종목 그리드
-                    </a>
                 </li>
                 <li class="nav-item" role="presentation">
                     <a class="nav-link" href="/screening.html" target="_blank">
@@ -164,46 +154,6 @@
 
             <!-- 탭 컨텐츠 -->
             <div class="tab-content" id="mainTabContent">
-                <!-- 종목 관리 탭 -->
-                <div class="tab-pane fade show active" id="stocks-pane" role="tabpanel">
-                    <div class="row">
-                        <div class="col-md-4">
-                            <div class="card">
-                                <div class="card-header">
-                                    <h6 class="mb-0"><i class="fas fa-plus"></i> 종목 추가</h6>
-                                </div>
-                                <div class="card-body">
-                                    <form id="add-stock-form">
-                                        <div class="mb-3">
-                                            <label for="stock-ticker" class="form-label">종목 코드</label>
-                                            <input type="text" class="form-control" id="stock-ticker" placeholder="예: 005930" required>
-                                        </div>
-                                        <button type="submit" class="btn btn-success w-100">추가</button>
-                                    </form>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col-md-8">
-                            <div class="card">
-                                <div class="card-header d-flex justify-content-between align-items-center">
-                                    <h6 class="mb-0"><i class="fas fa-chart-bar"></i> 종목 목록</h6>
-                                    <div>
-                                        <button id="refresh-stocks" class="btn btn-outline-primary btn-sm">
-                                            <i class="fas fa-sync"></i> 새로고침
-                                        </button>
-                                    </div>
-                                </div>
-                                <div class="card-body">
-                                    <div id="stocks-loading" class="loading">
-                                        <i class="fas fa-spinner fa-spin"></i> 로딩 중...
-                                    </div>
-                                    <div id="stocks-list"></div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
                 <!-- 기술적 지표 차트 탭 -->
                 <div class="tab-pane fade" id="charts-pane" role="tabpanel">
                     <div class="row mb-3">
@@ -310,40 +260,78 @@
                 </div>
 
                 <!-- 지표 분석 탭 -->
-                <div class="tab-pane fade" id="indicators-pane" role="tabpanel">
+                <div class="tab-pane fade show active" id="indicators-pane" role="tabpanel">
                     <!-- 필터 영역 -->
                     <div class="card mb-3">
                         <div class="card-header">
                             <h6 class="mb-0"><i class="fas fa-filter"></i> 필터</h6>
                         </div>
                         <div class="card-body">
-                            <div class="row g-3">
-                                <div class="col-md-2">
-                                    <label class="form-label">국가</label>
-                                    <select id="indicator-country-filter" class="form-select form-select-sm">
+                            <div class="row g-2 align-items-end">
+                                <div class="col-auto">
+                                    <label class="form-label small mb-1">국가</label>
+                                    <select id="indicator-country-filter" class="form-select form-select-sm" style="width: 90px;">
                                         <option value="">전체</option>
                                         <option value="KR">한국</option>
                                         <option value="US">미국</option>
                                     </select>
                                 </div>
-                                <div class="col-md-3 position-relative">
-                                    <label class="form-label">종목코드/명</label>
-                                    <input type="text" id="indicator-ticker-filter" class="form-control form-control-sm" placeholder="종목코드 또는 종목명" autocomplete="off">
-                                    <div id="indicator-autocomplete-list" class="position-absolute bg-white border rounded shadow-sm" style="top: 100%; left: 0; z-index: 1000; max-height: 200px; overflow-y: auto; display: none; width: 100%;"></div>
+                                <div class="col-auto position-relative">
+                                    <label class="form-label small mb-1">종목코드/명</label>
+                                    <input type="text" id="indicator-ticker-filter" class="form-control form-control-sm" placeholder="종목코드 또는 종목명" autocomplete="off" style="width: 180px;">
+                                    <div id="indicator-autocomplete-list" class="position-absolute bg-white border rounded shadow-sm" style="top: 100%; left: 0; z-index: 1000; max-height: 200px; overflow-y: auto; display: none; width: 180px;"></div>
                                 </div>
-                                <div class="col-md-2">
-                                    <label class="form-label">날짜</label>
-                                    <input type="date" id="indicator-date-filter" class="form-control form-control-sm">
+                                <div class="col-auto">
+                                    <label class="form-label small mb-1">날짜</label>
+                                    <input type="date" id="indicator-date-filter" class="form-control form-control-sm" style="width: 130px;">
                                 </div>
-                                <div class="col-md-2">
-                                    <label class="form-label">업종</label>
-                                    <select id="indicator-sector-filter" class="form-select form-select-sm">
+                                <div class="col-auto">
+                                    <label class="form-label small mb-1">업종</label>
+                                    <select id="indicator-sector-filter" class="form-select form-select-sm" style="width: 110px;">
                                         <option value="">전체</option>
                                     </select>
                                 </div>
-                                <div class="col-md-2 d-flex align-items-end">
-                                    <button id="apply-indicator-filter" class="btn btn-primary btn-sm w-100">
-                                        <i class="fas fa-search"></i>
+                                <div class="col-auto">
+                                    <label class="form-label small mb-1">추세</label>
+                                    <select id="indicator-trend-filter" class="form-select form-select-sm" style="width: 90px;">
+                                        <option value="">전체</option>
+                                        <option value="정배열">정배열</option>
+                                        <option value="역배열">역배열</option>
+                                    </select>
+                                </div>
+                                <div class="col-auto">
+                                    <label class="form-label small mb-1">RSI</label>
+                                    <select id="indicator-rsi-filter" class="form-select form-select-sm" style="width: 110px;">
+                                        <option value="">전체</option>
+                                        <option value="oversold">과매도(&lt;30)</option>
+                                        <option value="overbought">과매수(&gt;70)</option>
+                                        <option value="neutral">중립(30-70)</option>
+                                    </select>
+                                </div>
+                                <div class="col-auto">
+                                    <label class="form-label small mb-1">MACD</label>
+                                    <select id="indicator-macd-filter" class="form-select form-select-sm" style="width: 100px;">
+                                        <option value="">전체</option>
+                                        <option value="bullish">매수신호</option>
+                                        <option value="bearish">매도신호</option>
+                                    </select>
+                                </div>
+                                <div class="col-auto">
+                                    <label class="form-label small mb-1">Stoch</label>
+                                    <select id="indicator-stoch-filter" class="form-select form-select-sm" style="width: 100px;">
+                                        <option value="">전체</option>
+                                        <option value="golden">골든크로스</option>
+                                        <option value="dead">데드크로스</option>
+                                    </select>
+                                </div>
+                                <div class="col-auto">
+                                    <button id="apply-indicator-filter" class="btn btn-primary btn-sm">
+                                        <i class="fas fa-search"></i> 검색
+                                    </button>
+                                </div>
+                                <div class="col-auto">
+                                    <button id="reset-indicator-filter" class="btn btn-secondary btn-sm">
+                                        <i class="fas fa-redo"></i> 초기화
                                     </button>
                                 </div>
                             </div>
@@ -359,27 +347,34 @@
                         <div class="card">
                             <div class="card-header d-flex justify-content-between align-items-center">
                                 <h6 class="mb-0"><i class="fas fa-calculator"></i> 지표 분석 목록</h6>
-                                <button id="refresh-indicators" class="btn btn-outline-primary btn-sm">
-                                    <i class="fas fa-sync"></i> 새로고침
-                                </button>
+                                <div>
+                                    <span id="indicators-count" class="text-muted me-3"></span>
+                                    <button id="refresh-indicators" class="btn btn-outline-primary btn-sm">
+                                        <i class="fas fa-sync"></i> 새로고침
+                                    </button>
+                                </div>
                             </div>
                             <div class="card-body p-0">
-                                <div class="table-responsive">
-                                    <table class="table table-hover mb-0">
-                                        <thead class="table-light">
+                                <div class="table-responsive" style="max-height: 600px; overflow-y: auto;">
+                                    <table class="table table-hover table-sm mb-0" style="font-size: 0.85rem;">
+                                        <thead class="table-light" style="position: sticky; top: 0; z-index: 10;">
                                             <tr>
-                                                <th>국가</th>
-                                                <th>종목코드</th>
+                                                <th class="sortable" data-sort="country" style="cursor: pointer;">국가</th>
+                                                <th class="sortable" data-sort="ticker" style="cursor: pointer;">종목코드</th>
                                                 <th>종목명</th>
                                                 <th>업종</th>
-                                                <th>날짜</th>
-                                                <th>현재가</th>
-                                                <th>RSI</th>
-                                                <th>MA20</th>
-                                                <th>MA50</th>
-                                                <th>MA200</th>
-                                                <th>MACD</th>
-                                                <th>볼린저(%B)</th>
+                                                <th class="sortable" data-sort="close" style="cursor: pointer;">종가</th>
+                                                <th class="sortable" data-sort="high" style="cursor: pointer;">최고</th>
+                                                <th class="sortable" data-sort="low" style="cursor: pointer;">최저</th>
+                                                <th>추세</th>
+                                                <th class="sortable" data-sort="volume" style="cursor: pointer;">거래량</th>
+                                                <th class="sortable" data-sort="rsi" style="cursor: pointer;">RSI</th>
+                                                <th class="sortable" data-sort="macd" style="cursor: pointer;">MACD</th>
+                                                <th class="sortable" data-sort="stoch_k" style="cursor: pointer;">Stoch</th>
+                                                <th>볼린저</th>
+                                                <th>외인</th>
+                                                <th>기관</th>
+                                                <th>개인</th>
                                             </tr>
                                         </thead>
                                         <tbody id="indicators-grid-body">
@@ -387,6 +382,12 @@
                                         </tbody>
                                     </table>
                                 </div>
+                            </div>
+                            <div class="card-footer">
+                                <nav>
+                                    <ul class="pagination pagination-sm justify-content-center mb-0" id="indicators-pagination">
+                                    </ul>
+                                </nav>
                             </div>
                         </div>
                     </div>
@@ -635,6 +636,51 @@
                 </div>
                 <div class="toast-body" id="toast-body">
                     메시지
+                </div>
+            </div>
+        </div>
+
+        <!-- 한달 데이터 모달 -->
+        <div class="modal fade" id="monthlyDataModal" tabindex="-1">
+            <div class="modal-dialog modal-xl">
+                <div class="modal-content">
+                    <div class="modal-header bg-primary text-white">
+                        <h5 class="modal-title"><i class="fas fa-calendar-alt"></i> <span id="monthly-modal-title">종목 30일 데이터</span></h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body p-0">
+                        <div id="monthly-loading" class="text-center py-5" style="display: none;">
+                            <i class="fas fa-spinner fa-spin fa-2x"></i>
+                            <p class="mt-2">데이터 로딩 중...</p>
+                        </div>
+                        <div class="table-responsive" style="max-height: 500px; overflow-y: auto;">
+                            <table class="table table-hover table-sm mb-0" style="font-size: 0.8rem;">
+                                <thead class="table-light" style="position: sticky; top: 0;">
+                                    <tr>
+                                        <th>날짜</th>
+                                        <th>종가</th>
+                                        <th>최고</th>
+                                        <th>최저</th>
+                                        <th>거래량</th>
+                                        <th>RSI</th>
+                                        <th>MACD</th>
+                                        <th>Stoch</th>
+                                        <th>볼린저</th>
+                                        <th>외인</th>
+                                        <th>기관</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="monthly-data-body">
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-primary" onclick="app.goToChartFromModal()">
+                            <i class="fas fa-chart-line"></i> 차트 보기
+                        </button>
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">닫기</button>
+                    </div>
                 </div>
             </div>
         </div>
