@@ -14,10 +14,23 @@ AI 기반 주식 투자 시뮬레이션과 실시간 모니터링을 제공하�
 - **패턴 인식**: 골든크로스, 데드크로스, 과매수/과매도 신호
 - **ML 추천 엔진**: XGBoost, LSTM 기반 매매 신호 생성
 
+### 🔔 매도 신호 서비스 (NEW)
+**3계층 알고리즘 아키텍처** 기반 자동 매도 타이밍 알림
+
+| Type | 분류 | 우선순위 | 신호 예시 |
+|------|------|---------|---------|
+| **A** | 리스크 관리 | CRITICAL | ATR 손절, 고정 손절(-5%), Time Stop |
+| **B** | 추세 종료 | HIGH | MACD 데드크로스, MA 크로스, RSI 반전 |
+| **C** | 수익 목표 | MEDIUM | 피보나치 도달, R/R 목표, 볼린저밴드 상단 |
+
+- Airflow DAG로 10분마다 자동 모니터링
+- Email/Kakao/Slack 알림 지원
+
 ### 💼 포트폴리오 관리
 - 개인 포트폴리오 추적
 - 실시간 손익 계산
 - 위험도 분석 및 다각화 제안
+- **매수 신호 → 원클릭 보유종목 등록** (손절/목표가 자동 설정)
 
 ### 📈 시각화 및 모니터링
 - **Grafana 대시보드**: 실시간 차트 및 지표
@@ -144,18 +157,23 @@ GitHub Actions를 사용한 자동 배포를 원하시면 [Self-hosted Runner �
 ## 📁 프로젝트 구조
 
 ```
-stock-trading-system/
-├── backend/                 # Backend API 서비스
-│   ├── user_service/       # 사용자 인증 및 포트폴리오
-│   ├── stock_service/      # 주가 데이터 수집 및 분석
-│   ├── simulation_service/ # 백테스팅 시뮬레이션
-│   ├── ai_service/        # AI 추천 엔진
-│   └── celery_app.py      # 스케줄링 작업
-├── database/              # 데이터베이스 스키마
-├── monitoring/            # Grafana 대시보드 설정
-├── frontend/              # 웹 인터페이스 (예정)
-├── docker-compose.yml     # 컨테이너 오케스트레이션
-└── demo.py               # 단독 실행 데모
+happystocklife-main/
+├── backend/                    # Backend API 서비스
+│   ├── user_service/          # 사용자 인증
+│   ├── stock_service/         # 주가 데이터 수집 및 분석
+│   ├── trading_service/       # 매매 신호 감지
+│   ├── sell_signal_service/   # 매도 신호 (3계층 알고리즘) ⭐NEW
+│   ├── holdings_service/      # 보유종목 관리 ⭐NEW
+│   ├── simulation_service/    # 백테스팅 시뮬레이션
+│   ├── ai_service/           # AI 추천 엔진
+│   ├── frontend/             # 웹 UI (HTML/JS)
+│   └── main.py               # FastAPI 앱
+├── airflow/dags/              # Airflow 스케줄링
+│   ├── sell_signal_monitor_dag.py  # 매도 신호 모니터링 ⭐NEW
+│   └── ...
+├── strategies/                # 매매 전략 문서
+├── docker-compose.yml         # 컨테이너 오케스트레이션
+└── README.md
 ```
 
 ## 🔧 주요 API 엔드포인트
@@ -180,6 +198,21 @@ GET  /api/v1/stocks/screen/oversold     # 과매도 종목 스크리닝
 ```
 GET /api/v1/ai/recommendations  # AI 매매 추천
 GET /api/v1/ai/patterns        # 발견된 패턴
+```
+
+### 매도 신호 (NEW)
+```
+GET /api/v1/sell-signals/check/{user_id}      # 전체 보유종목 매도 신호 분석
+GET /api/v1/sell-signals/holding/{holding_id} # 개별 종목 매도 신호
+GET /api/v1/sell-signals/critical             # 긴급 신호만 조회
+GET /api/v1/sell-signals/profit-targets       # 익절 신호 조회
+```
+
+### 보유종목
+```
+GET  /api/v1/holdings/         # 보유종목 목록
+POST /api/v1/holdings/         # 보유종목 추가
+GET  /api/v1/holdings/summary  # 요약 (총 수익률 등)
 ```
 
 ## 📈 사용 예시
