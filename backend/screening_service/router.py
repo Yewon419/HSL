@@ -24,6 +24,19 @@ class ScreeningRequest(BaseModel):
     start_date: str
     end_date: str
 
+# 새로운 프론트엔드용 모델
+class NewScreeningCondition(BaseModel):
+    type: str
+    operator: str
+    value: Any
+    period: Optional[int] = None
+    description: Optional[str] = None
+
+class NewScreeningRequest(BaseModel):
+    conditions: List[NewScreeningCondition]
+    target_market: Optional[str] = "ALL"
+    target_date: Optional[str] = None
+
 class BacktestRequest(BaseModel):
     tickers: List[str]
     start_date: str
@@ -72,6 +85,132 @@ async def screen_stocks(request: ScreeningRequest):
         return results
     except Exception as e:
         logger.error(f"Error in screening: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/run")
+async def run_screening(request: NewScreeningRequest):
+    """새로운 프론트엔드용 스크리닝 실행"""
+    from database import SessionLocal
+    from sqlalchemy import text
+    from datetime import datetime
+
+    try:
+        target_date = request.target_date or datetime.now().strftime("%Y-%m-%d")
+        target_market = request.target_market or "ALL"
+
+        db = SessionLocal()
+
+        # 지표 매핑 (실제 DB 컬럼명)
+        indicator_map = {
+            'RSI': 'ti.rsi',
+            'MACD': 'ti.macd',
+            'MACD_SIGNAL': 'ti.macd_signal',
+            'MACD_HISTOGRAM': 'ti.macd_histogram',
+            'MA_20': 'ti.ma_20',
+            'MA_50': 'ti.ma_50',
+            'MA_200': 'ti.ma_200',
+            'BB_UPPER': 'ti.bollinger_upper',
+            'BB_LOWER': 'ti.bollinger_lower',
+            'BB_MIDDLE': 'ti.bollinger_middle',
+            'PRICE': 'sp.close_price',
+            'VOLUME': 'sp.volume',
+            'STOCHASTIC_K': 'ti.stoch_k',
+            'STOCHASTIC_D': 'ti.stoch_d',
+        }
+
+        # 조건 필터 구성
+        where_conditions = []
+        for cond in request.conditions:
+            db_column = indicator_map.get(cond.type)
+            if not db_column:
+                continue
+
+            # 값이 다른 지표인 경우 (cross_above, cross_below)
+            if cond.operator in ['cross_above', 'cross_below']:
+                compare_column = indicator_map.get(str(cond.value))
+                if compare_column:
+                    if cond.operator == 'cross_above':
+                        where_conditions.append(f"{db_column} > {compare_column}")
+                    else:
+                        where_conditions.append(f"{db_column} < {compare_column}")
+            elif cond.operator in ['>', '>=', '<', '<=', '==', '!=']:
+                try:
+                    val = float(cond.value)
+                    op = '=' if cond.operator == '==' else cond.operator
+                    op = '<>' if cond.operator == '!=' else op
+                    where_conditions.append(f"{db_column} {op} {val}")
+                except (ValueError, TypeError):
+                    pass
+
+        # 시장 필터
+        market_filter = ""
+        if target_market == "KOSPI":
+            market_filter = " AND s.market = 'KOSPI'"
+        elif target_market == "KOSDAQ":
+            market_filter = " AND s.market = 'KOSDAQ'"
+
+        conditions_sql = ""
+        if where_conditions:
+            conditions_sql = " AND " + " AND ".join(where_conditions)
+
+        # 기본 쿼리 구성
+        base_query = f"""
+            SELECT DISTINCT
+                sp.ticker,
+                s.company_name,
+                sp.close_price as price,
+                sp.volume,
+                ti.rsi,
+                ti.macd,
+                ti.ma_20,
+                ti.ma_50
+            FROM stock_prices sp
+            JOIN stocks s ON sp.ticker = s.ticker
+            LEFT JOIN technical_indicators ti ON sp.ticker = ti.ticker AND sp.date = ti.date
+            WHERE sp.date = :target_date
+            {market_filter}
+            {conditions_sql}
+            ORDER BY sp.volume DESC
+            LIMIT 100
+        """
+
+        result = db.execute(text(base_query), {"target_date": target_date})
+        rows = result.fetchall()
+
+        # 전체 종목 수 조회
+        count_query = "SELECT COUNT(DISTINCT ticker) FROM stock_prices WHERE date = :target_date"
+        count_result = db.execute(text(count_query), {"target_date": target_date})
+        total_count = count_result.scalar() or 0
+
+        db.close()
+
+        # 결과 포맷팅
+        results = []
+        for row in rows:
+            ticker, company_name, price, volume, rsi, macd, ma20, ma50 = row
+            results.append({
+                "ticker": ticker,
+                "company_name": company_name,
+                "price": float(price) if price else 0,
+                "volume": int(volume) if volume else 0,
+                "rsi": float(rsi) if rsi else None,
+                "macd": float(macd) if macd else None,
+                "ma_20": float(ma20) if ma20 else None,
+                "ma_50": float(ma50) if ma50 else None,
+                "change_percent": 0,
+                "matched_conditions": [c.description or f"{c.type} {c.operator} {c.value}" for c in request.conditions]
+            })
+
+        return {
+            "success": True,
+            "target_date": target_date,
+            "target_market": target_market,
+            "total_scanned": total_count,
+            "results": results
+        }
+
+    except Exception as e:
+        logger.error(f"Error in new screening: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/backtest")
