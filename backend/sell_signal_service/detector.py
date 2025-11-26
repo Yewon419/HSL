@@ -491,12 +491,15 @@ class SellSignalDetector:
                         ti.bollinger_upper,
                         ti.bollinger_lower,
                         (
-                            SELECT AVG(volume)::float
-                            FROM stock_prices sp2
-                            WHERE sp2.ticker = h.ticker
-                            AND sp2.date <= :target_date
-                            ORDER BY sp2.date DESC
-                            LIMIT 20
+                            SELECT AVG(vol_sub.volume)::float
+                            FROM (
+                                SELECT volume
+                                FROM stock_prices sp2
+                                WHERE sp2.ticker = h.ticker
+                                AND sp2.date <= :target_date
+                                ORDER BY sp2.date DESC
+                                LIMIT 20
+                            ) vol_sub
                         ) as avg_volume_20
                     FROM holdings h
                     JOIN stock_prices sp ON h.ticker = sp.ticker
