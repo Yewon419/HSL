@@ -81,17 +81,6 @@ if os.path.exists(frontend_dir):
     async def read_screening():
         return FileResponse(os.path.join(frontend_dir, "screening.html"))
 
-    @app.get("/rsi_ma_strategy.html")
-    async def read_rsi_ma_strategy():
-        # frontend 폴더에 없으면 상위 frontend 폴더 확인
-        rsi_ma_path = os.path.join(frontend_dir, "rsi_ma_strategy.html")
-        if not os.path.exists(rsi_ma_path):
-            # 상위 폴더의 frontend 확인
-            parent_frontend = os.path.join(os.path.dirname(os.path.dirname(__file__)), "frontend", "rsi_ma_strategy.html")
-            if os.path.exists(parent_frontend):
-                return FileResponse(parent_frontend)
-        return FileResponse(rsi_ma_path)
-
     @app.get("/send_notification.html")
     async def read_send_notification():
         return FileResponse(os.path.join(frontend_dir, "send_notification.html"))
