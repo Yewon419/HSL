@@ -99,6 +99,13 @@ if os.path.exists(frontend_dir):
     @app.get("/stock_grid.html")
     async def read_stock_grid():
         return FileResponse(os.path.join(frontend_dir, "stock_grid.html"))
+
+    @app.get("/favicon.ico")
+    async def read_favicon():
+        favicon_path = os.path.join(frontend_dir, "favicon.ico")
+        if os.path.exists(favicon_path):
+            return FileResponse(favicon_path)
+        return FileResponse(favicon_path, status_code=204)
 else:
     @app.get("/")
     async def root():

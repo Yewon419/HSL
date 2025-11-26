@@ -37,16 +37,8 @@ class StockTradingApp {
     }
 
     bindEvents() {
-        // 날짜 필터 초기화 - 오늘 날짜로 설정
-        const today = new Date().toISOString().split('T')[0];
-        const indicatorDateFilter = document.getElementById('indicator-date-filter');
-        const signalDateFilter = document.getElementById('signal-date-filter');
-        if (indicatorDateFilter && !indicatorDateFilter.value) {
-            indicatorDateFilter.value = today;
-        }
-        if (signalDateFilter && !signalDateFilter.value) {
-            signalDateFilter.value = today;
-        }
+        // 날짜 필터 초기화 - API에서 최신 데이터 날짜를 가져와서 설정
+        this.initializeDateFilters();
 
         // 로그인 폼
         document.getElementById('login-form').addEventListener('submit', (e) => this.handleLogin(e));
@@ -200,6 +192,38 @@ class StockTradingApp {
         document.getElementById('logout-btn').style.display = 'block';
     }
 
+    async initializeDateFilters() {
+        // API에서 최신 데이터 날짜를 가져와서 날짜 필터 초기화
+        try {
+            const response = await fetch(`${this.baseURL}/stocks/latest-date`);
+            if (response.ok) {
+                const data = await response.json();
+                const latestDate = data.latest_date;
+
+                const indicatorDateFilter = document.getElementById('indicator-date-filter');
+                const signalDateFilter = document.getElementById('signal-date-filter');
+
+                if (indicatorDateFilter && !indicatorDateFilter.value) {
+                    indicatorDateFilter.value = latestDate;
+                }
+                if (signalDateFilter && !signalDateFilter.value) {
+                    signalDateFilter.value = latestDate;
+                }
+            }
+        } catch (error) {
+            console.log('최신 날짜 조회 실패, 오늘 날짜 사용');
+            const today = new Date().toISOString().split('T')[0];
+            const indicatorDateFilter = document.getElementById('indicator-date-filter');
+            const signalDateFilter = document.getElementById('signal-date-filter');
+            if (indicatorDateFilter && !indicatorDateFilter.value) {
+                indicatorDateFilter.value = today;
+            }
+            if (signalDateFilter && !signalDateFilter.value) {
+                signalDateFilter.value = today;
+            }
+        }
+    }
+
     async loadStockList() {
         // 종목 목록만 로드 (자동완성용)
         try {
@@ -211,11 +235,20 @@ class StockTradingApp {
 
             if (response.ok) {
                 this.stocks = await response.json();
+                console.log(`종목 목록 로드 완료: ${this.stocks.length}개`);
                 this.updateTickerSelects();
             }
         } catch (error) {
             console.error('종목 목록 로드 오류:', error);
         }
+    }
+
+    // 종목 목록이 없으면 다시 로드
+    async ensureStocksLoaded() {
+        if (!this.stocks || this.stocks.length === 0) {
+            await this.loadStockList();
+        }
+        return this.stocks;
     }
 
     async loadStocks() {
@@ -286,16 +319,27 @@ class StockTradingApp {
         const chartTickerInput = document.getElementById('chart-ticker-select');
         const autocompleteList = document.getElementById('chart-autocomplete-list');
 
-        if (!chartTickerInput || !autocompleteList) return;
+        if (!chartTickerInput || !autocompleteList) {
+            console.log('차트 자동완성 요소를 찾을 수 없음');
+            return;
+        }
+
+        console.log('차트 자동완성 초기화');
 
         // 입력 시 자동완성 표시
-        chartTickerInput.addEventListener('input', (e) => {
+        chartTickerInput.addEventListener('input', async (e) => {
             let value = e.target.value.trim();
             autocompleteList.innerHTML = '';
 
             if (value.length < 1) {
                 autocompleteList.style.display = 'none';
                 return;
+            }
+
+            // 종목 목록이 없으면 로드
+            if (!this.stocks || this.stocks.length === 0) {
+                console.log('종목 목록 로드 중...');
+                await this.ensureStocksLoaded();
             }
 
             // "종목코드 - 종목명" 형식의 값을 처리하기 위해 파싱
@@ -980,10 +1024,24 @@ class StockTradingApp {
         try {
             // 필터 값 가져오기
             let dateFilter = document.getElementById('indicator-date-filter').value;
+            const today = new Date().toISOString().split('T')[0];
 
-            // 날짜가 없으면 오늘 날짜로 설정 (동적으로 최신 날짜 사용)
+            // 날짜가 없거나 오늘 날짜인 경우 → API에서 최신 날짜를 가져옴
+            if (!dateFilter || dateFilter === today) {
+                try {
+                    const latestResponse = await fetch(`${this.baseURL}/stocks/latest-date`);
+                    if (latestResponse.ok) {
+                        const latestData = await latestResponse.json();
+                        dateFilter = latestData.latest_date;
+                        document.getElementById('indicator-date-filter').value = dateFilter;
+                    }
+                } catch (e) {
+                    console.log('최신 날짜 조회 실패');
+                }
+            }
+
+            // 여전히 날짜가 없으면 오늘 날짜 사용
             if (!dateFilter) {
-                const today = new Date().toISOString().split('T')[0];
                 dateFilter = today;
                 document.getElementById('indicator-date-filter').value = dateFilter;
             }
@@ -998,6 +1056,31 @@ class StockTradingApp {
                     this.displayIndicatorsGrid(data);
                     document.getElementById('indicators-grid-container').style.display = 'block';
                 } else {
+                    // 데이터가 없으면 최신 날짜로 재시도
+                    if (dateFilter === today) {
+                        try {
+                            const latestResponse = await fetch(`${this.baseURL}/stocks/latest-date`);
+                            if (latestResponse.ok) {
+                                const latestData = await latestResponse.json();
+                                if (latestData.latest_date !== dateFilter) {
+                                    dateFilter = latestData.latest_date;
+                                    document.getElementById('indicator-date-filter').value = dateFilter;
+                                    // 재시도
+                                    const retryResponse = await fetch(`${this.baseURL}/v1/indicators/grid?date=${dateFilter}`);
+                                    if (retryResponse.ok) {
+                                        const retryData = await retryResponse.json();
+                                        if (retryData && retryData.length > 0) {
+                                            this.displayIndicatorsGrid(retryData);
+                                            document.getElementById('indicators-grid-container').style.display = 'block';
+                                            return;
+                                        }
+                                    }
+                                }
+                            }
+                        } catch (e) {
+                            console.log('재시도 실패');
+                        }
+                    }
                     this.showNotification('해당 날짜에 지표 데이터가 없습니다', 'info');
                 }
             } else {

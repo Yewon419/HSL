@@ -1,44 +1,85 @@
 # Stock Trading System 운영 가이드
 
-## 🚀 상태 (2025-11-10) ✅ 배치 운영 체계 확립 완료!
+## 🚀 상태 (2025-11-26) ✅ 시스템 정상 운영 중
 
 ### ✅ 현재 진행 상황
 
-**상태**: 🟢 모든 시스템 정상 운영 중 - UI 복원 작업 진행 중
+**상태**: 🟢 모든 시스템 정상 운영 중
 
-#### 🆕 2025-11-10 최종 완료된 작업:
+---
+
+## 🔥 빠른 시작 (Windows)
+
+```bash
+# 1. 시스템 시작
+docker-compose -f "C:\Users\windg\Desktop\PROJECT\happystocklife-main\docker-compose.yml" up -d
+
+# 2. 상태 확인
+docker ps --format "table {{.Names}}\t{{.Status}}"
+
+# 3. 접속
+# 메인 UI: http://localhost:8000
+# Airflow: http://localhost:8080
+# 로그인: testuser2 / testpass123
+```
+
+---
+
+#### 🆕 2025-11-26 수정된 사항:
+- ✅ **favicon.ico 404 오류 해결**
+  - `backend/frontend/favicon.ico` 파일 추가
+  - `backend/main.py`에 `/favicon.ico` 라우트 추가
+
+- ✅ **날짜 필터 개선 (중요!)**
+  - **이전**: 오늘 날짜로 고정 → 오늘 데이터가 없으면 "데이터 없음" 오류
+  - **현재**: API(`/api/stocks/latest-date`)에서 **DB의 최신 데이터 날짜**를 가져와서 설정
+  - 수정 파일: `backend/frontend/app.js`
+    - `initializeDateFilters()` 함수 추가
+    - `loadIndicatorsGrid()` 함수 수정 (오늘 날짜면 자동으로 최신 날짜 사용)
+    - `loadSignalsGrid()` 함수는 이미 적용되어 있었음
+
+- ✅ **브라우저 캐시 문제 방지**
+  - `index.html`에서 JS 파일에 버전 쿼리 파라미터 추가
+  - `app.js?v=20251126b`, `config.js?v=20251126b`
+  - ⚠️ **JS 수정 시 버전 올리기**: `?v=YYYYMMDD` 형식으로 날짜 변경 필요!
+
+- ✅ **자동완성 기능 개선**
+  - 기술적 지표 차트 탭의 종목 검색 자동완성
+  - 종목 목록이 없으면 자동으로 API 호출하여 로드
+  - 콘솔 로그 추가로 디버깅 용이
+  - API `/api/stocks/?limit=1000` 정상 응답 (2,779개 종목)
+
+- ✅ **이메일 리포트 DAG 오류 수정**
+  - 파일: `airflow/dags/email_report_dag.py`
+  - **문제 1**: `price`, `rsi`, `ma20`, `ma50`, `macd` 값이 NULL일 때 포맷 오류
+  - **해결**: None 값 체크 후 "-"로 표시
+  - **문제 2**: Decimal 타입 비교 시 `decimal.InvalidOperation` 오류
+  - **해결**: `safe_compare()` 함수로 float 변환 후 비교
+  - **결과**: ✅ 매일 17:00 KST 이메일 자동 발송 정상 작동
+
+#### 📧 이메일 리포트 스케줄
+| 항목 | 내용 |
+|------|------|
+| DAG 이름 | `daily_email_report` |
+| 스케줄 | 매일 **17:00 KST** (08:00 UTC) |
+| 발신자 | windgarden419@gmail.com |
+| 수신자 | windgarden05@gmail.com |
+| 내용 | 기술지표 일일 리포트 (과매도/과매수 종목 포함) |
+
+#### 📊 데이터 수집 현황 (2025-11-26 확인)
+- **데이터 범위**: 2024-11-22 ~ 2025-11-25 (총 250 거래일)
+- **총 레코드**: 660,657개
+- **일일 종목 수**: ~2,755개
+- **상태**: ✅ 매일 자동 수집 정상 작동 중
+
+#### 🆕 2025-11-10 완료된 작업:
 - ✅ **배치 스케줄 최적화**
   - 주가 수집 시간: **16:30 KST (UTC 07:30) 평일 실행**
   - 지표 계산: **주가 수집 완료 후 자동 실행 (TriggerDagRunOperator)**
-  - ExternalTaskSensor → TriggerDagRunOperator로 변경 (대기 없이 즉시 실행)
-  - start_date 업데이트: 2025-11-10 (catchup 방지)
-
-- ✅ **문서 체계 확립**
-  - [문서 정리 규칙](docs/DOCUMENTATION_RULES.md) 작성 완료
-  - [일일 배치 운영 매뉴얼](docs/operations/daily_batch_operations.md) 작성 완료
-  - docs/index.md 업데이트 (운영 가이드 추가)
-  - 카테고리별 디렉토리 구조 정의 (architecture, deployment, guides, operations, troubleshooting)
 
 - ✅ **운영 환경 분리**
   - 운영서버(101, 192.168.219.101)에서만 Airflow 실행
   - 개발 PC Docker 중지 (environment separation 완료)
-
-#### 🆕 2025-11-06 완료된 작업:
-- ✅ **시스템 전체 기동**
-  - Docker Compose 10개 서비스 정상 실행
-  - Airflow 스케줄러 정상 작동 (로컬 postgres 분리)
-  - 운영 DB 연결 정상 (192.168.219.103)
-- ✅ **로그인 기능 수정**
-  - 비밀번호 기본값 수정: `password123` → `testpass123`
-  - 401 Unauthorized 에러 해결
-  - 로그인 테스트 완료
-- ✅ **UI 날짜 필터 개선**
-  - 지표분석 탭: 2025-10-02 고정 → 동적 오늘 날짜
-  - 매매분석 탭: 2025-10-02 고정 → 동적 오늘 날짜
-  - 자동으로 최신 데이터 표시
-- ✅ **문서 작성**
-  - WORK_PROGRESS_20251106.md 작성
-  - index.md 및 start_hsl.md 업데이트
 
 #### 📝 이전 완료된 작업:
 - ✅ **스크리닝 & 백테스팅 시스템 전체 구현 파악**

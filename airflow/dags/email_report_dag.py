@@ -126,23 +126,31 @@ def send_daily_email_report(**context):
         ticker, name, price, rsi, ma20, ma50, macd, status = row
 
         # RSI 상태에 따라 클래스 지정
-        if '과매도' in status:
+        if status and '과매도' in status:
             status_class = 'oversold'
-        elif '과매수' in status:
+        elif status and '과매수' in status:
             status_class = 'overbought'
         else:
             status_class = 'neutral'
+
+        # None 값 처리
+        price_str = f"{price:,.0f}원" if price is not None else "-"
+        rsi_str = f"{rsi:.2f}" if rsi is not None else "-"
+        ma20_str = f"{ma20:,.0f}원" if ma20 is not None else "-"
+        ma50_str = f"{ma50:,.0f}원" if ma50 is not None else "-"
+        macd_str = f"{macd:,.2f}" if macd is not None else "-"
+        status_str = status if status else "데이터 없음"
 
         html_content += f"""
             <tr>
                 <td>{ticker}</td>
                 <td><strong>{name}</strong></td>
-                <td>{price:,.0f}원</td>
-                <td><strong>{rsi:.2f}</strong></td>
-                <td>{ma20:,.0f}원</td>
-                <td>{ma50:,.0f}원</td>
-                <td>{macd:,.2f}</td>
-                <td class="{status_class}">{status}</td>
+                <td>{price_str}</td>
+                <td><strong>{rsi_str}</strong></td>
+                <td>{ma20_str}</td>
+                <td>{ma50_str}</td>
+                <td>{macd_str}</td>
+                <td class="{status_class}">{status_str}</td>
             </tr>
         """
 
@@ -154,9 +162,18 @@ def send_daily_email_report(**context):
     <ul>
 """
 
-    # 과매도/과매수 종목 요약
-    oversold = [row for row in data if row[3] and row[3] < 30]
-    overbought = [row for row in data if row[3] and row[3] > 70]
+    # 과매도/과매수 종목 요약 (Decimal 타입 처리)
+    def safe_compare(val, threshold, less_than=True):
+        if val is None:
+            return False
+        try:
+            val_float = float(val)
+            return val_float < threshold if less_than else val_float > threshold
+        except (ValueError, TypeError):
+            return False
+
+    oversold = [row for row in data if safe_compare(row[3], 30, less_than=True)]
+    overbought = [row for row in data if safe_compare(row[3], 70, less_than=False)]
 
     if oversold:
         html_content += f"        <li><strong>과매도 종목 ({len(oversold)}개):</strong> "
