@@ -81,6 +81,10 @@ if os.path.exists(frontend_dir):
     async def read_screening():
         return FileResponse(os.path.join(frontend_dir, "screening.html"))
 
+    @app.get("/backtest.html")
+    async def read_backtest():
+        return FileResponse(os.path.join(frontend_dir, "backtest.html"))
+
     @app.get("/send_notification.html")
     async def read_send_notification():
         return FileResponse(os.path.join(frontend_dir, "send_notification.html"))

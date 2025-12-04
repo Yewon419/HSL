@@ -1,0 +1,853 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>백테스트 & 성과 평가 | HSL</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #6f42c1;
+            --success-color: #1db854;
+            --danger-color: #dc3545;
+        }
+
+        body {
+            font-family: 'Malgun Gothic', Arial, sans-serif;
+            background: linear-gradient(135deg, #f5f7fa 0%, #e8e0f0 100%);
+            min-height: 100vh;
+        }
+
+        .navbar {
+            box-shadow: 0 2px 10px rgba(0,0,0,.1);
+            background: linear-gradient(90deg, #6f42c1 0%, #8b5cf6 100%) !important;
+        }
+
+        .card {
+            border: none;
+            box-shadow: 0 4px 15px rgba(0,0,0,.08);
+            border-radius: 12px;
+            margin-bottom: 20px;
+        }
+
+        .card-header {
+            background: linear-gradient(90deg, #f8f9fa 0%, #ffffff 100%);
+            border-bottom: 2px solid #e9ecef;
+            font-weight: 600;
+            padding: 15px 20px;
+            border-radius: 12px 12px 0 0 !important;
+        }
+
+        .btn-primary-custom {
+            background: linear-gradient(90deg, var(--primary-color) 0%, #8b5cf6 100%);
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-weight: 600;
+        }
+
+        .btn-primary-custom:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(111,66,193,0.3);
+        }
+
+        /* 종목 선택 */
+        .stock-chip {
+            display: inline-flex;
+            align-items: center;
+            background: #e9ecef;
+            padding: 6px 12px;
+            border-radius: 20px;
+            margin: 4px;
+            font-size: 0.9rem;
+        }
+
+        .stock-chip .remove-btn {
+            margin-left: 8px;
+            cursor: pointer;
+            color: #6c757d;
+        }
+
+        .stock-chip .remove-btn:hover {
+            color: #dc3545;
+        }
+
+        .stock-search-results {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            max-height: 250px;
+            overflow-y: auto;
+            z-index: 1000;
+            display: none;
+        }
+
+        .stock-search-results.active {
+            display: block;
+        }
+
+        .stock-search-item {
+            padding: 10px 15px;
+            cursor: pointer;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .stock-search-item:hover {
+            background: #f8f9ff;
+        }
+
+        /* 성과 평가 스타일 */
+        .grade-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            font-size: 2.5rem;
+            font-weight: 800;
+            color: white;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+        }
+
+        .grade-S { background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%); }
+        .grade-A { background: linear-gradient(135deg, #00C851 0%, #007E33 100%); }
+        .grade-B { background: linear-gradient(135deg, #33b5e5 0%, #0099CC 100%); }
+        .grade-C { background: linear-gradient(135deg, #ffbb33 0%, #FF8800 100%); }
+        .grade-D { background: linear-gradient(135deg, #ff4444 0%, #CC0000 100%); }
+        .grade-F { background: linear-gradient(135deg, #6c757d 0%, #343a40 100%); }
+
+        .score-bar {
+            height: 10px;
+            border-radius: 5px;
+            background: #e9ecef;
+            overflow: hidden;
+        }
+
+        .score-bar-fill {
+            height: 100%;
+            border-radius: 5px;
+            transition: width 0.8s ease;
+        }
+
+        .score-excellent { background: linear-gradient(90deg, #00C851, #007E33); }
+        .score-good { background: linear-gradient(90deg, #33b5e5, #0099CC); }
+        .score-average { background: linear-gradient(90deg, #ffbb33, #FF8800); }
+        .score-poor { background: linear-gradient(90deg, #ff4444, #CC0000); }
+
+        .performance-card {
+            background: linear-gradient(135deg, #fff 0%, #f8f9fa 100%);
+            border-radius: 12px;
+            padding: 20px;
+            height: 100%;
+        }
+
+        .metric-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .metric-item:last-child {
+            border-bottom: none;
+        }
+
+        .metric-label {
+            color: #6c757d;
+        }
+
+        .metric-value {
+            font-weight: 600;
+        }
+
+        .metric-value.positive { color: #dc3545; }
+        .metric-value.negative { color: #0d6efd; }
+
+        .recommendation-item {
+            padding: 12px 15px;
+            margin: 8px 0;
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            border-radius: 4px;
+        }
+
+        .strength-item {
+            padding: 12px 15px;
+            margin: 8px 0;
+            background: #d1e7dd;
+            border-left: 4px solid #198754;
+            border-radius: 4px;
+        }
+
+        .weakness-item {
+            padding: 12px 15px;
+            margin: 8px 0;
+            background: #f8d7da;
+            border-left: 4px solid #dc3545;
+            border-radius: 4px;
+        }
+
+        .summary-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 12px;
+            padding: 25px;
+        }
+
+        .individual-result-card {
+            border-left: 4px solid var(--primary-color);
+            transition: all 0.2s;
+        }
+
+        .individual-result-card:hover {
+            transform: translateX(5px);
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #6c757d;
+        }
+
+        .empty-state i {
+            font-size: 4rem;
+            margin-bottom: 20px;
+            opacity: 0.5;
+        }
+    </style>
+</head>
+<body>
+    <!-- 네비게이션 -->
+    <nav class="navbar navbar-expand-lg navbar-dark mb-4">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/">
+                <i class="fas fa-chart-line me-2"></i>HSL 주식 시스템
+            </a>
+            <span class="navbar-text text-white">
+                <i class="fas fa-flask me-1"></i> 백테스트 & 성과 평가
+            </span>
+        </div>
+    </nav>
+
+    <div class="container-fluid px-4">
+        <!-- 헤더 -->
+        <div class="mb-4">
+            <h2 class="fw-bold text-dark">
+                <i class="fas fa-flask me-2 text-primary"></i>백테스트 & 성과 평가
+            </h2>
+            <p class="text-muted">포트폴리오 구성 후 과거 데이터로 전략을 검증하고 100점 만점으로 평가받으세요</p>
+        </div>
+
+        <div class="row">
+            <!-- 왼쪽: 설정 -->
+            <div class="col-lg-4">
+                <!-- 종목 선택 -->
+                <div class="card">
+                    <div class="card-header">
+                        <i class="fas fa-search-dollar me-2"></i>종목 선택
+                    </div>
+                    <div class="card-body">
+                        <div class="position-relative mb-3">
+                            <input type="text" class="form-control" id="stock-search"
+                                   placeholder="종목명 또는 코드 검색..." autocomplete="off">
+                            <div class="stock-search-results" id="search-results"></div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label text-muted small">선택된 종목 (최대 10개)</label>
+                            <div id="selected-stocks" class="border rounded p-2 min-h-50">
+                                <span class="text-muted small">종목을 검색하여 추가하세요</span>
+                            </div>
+                        </div>
+                        <button class="btn btn-outline-secondary btn-sm" onclick="clearAllStocks()">
+                            <i class="fas fa-trash me-1"></i>전체 삭제
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 백테스트 설정 -->
+                <div class="card">
+                    <div class="card-header">
+                        <i class="fas fa-cog me-2"></i>백테스트 설정
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-6">
+                                <label class="form-label fw-bold">시작일</label>
+                                <input type="date" class="form-control" id="start-date">
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label fw-bold">종료일</label>
+                                <input type="date" class="form-control" id="end-date">
+                            </div>
+                        </div>
+                        <div class="mt-3">
+                            <label class="form-label fw-bold">초기 자본금</label>
+                            <div class="input-group">
+                                <input type="number" class="form-control" id="initial-capital"
+                                       value="10000000" step="1000000">
+                                <span class="input-group-text">원</span>
+                            </div>
+                        </div>
+                        <div class="row g-3 mt-1">
+                            <div class="col-6">
+                                <label class="form-label fw-bold">포지션 크기</label>
+                                <div class="input-group">
+                                    <input type="number" class="form-control" id="position-size"
+                                           value="10" min="1" max="100">
+                                    <span class="input-group-text">%</span>
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label fw-bold">거래 비용</label>
+                                <div class="input-group">
+                                    <input type="number" class="form-control" id="transaction-cost"
+                                           value="0.3" step="0.1">
+                                    <span class="input-group-text">%</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 실행 버튼 -->
+                        <button class="btn btn-primary-custom w-100 mt-4" onclick="runBacktest()" id="run-btn">
+                            <i class="fas fa-play me-2"></i>백테스트 실행
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 퀵 프리셋 -->
+                <div class="card">
+                    <div class="card-header">
+                        <i class="fas fa-bolt me-2 text-warning"></i>퀵 프리셋
+                    </div>
+                    <div class="card-body">
+                        <button class="btn btn-outline-primary btn-sm mb-2 me-1" onclick="loadPreset('bluechip')">
+                            우량주 10선
+                        </button>
+                        <button class="btn btn-outline-primary btn-sm mb-2 me-1" onclick="loadPreset('tech')">
+                            기술주 5선
+                        </button>
+                        <button class="btn btn-outline-primary btn-sm mb-2" onclick="loadPreset('dividend')">
+                            배당주 5선
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 오른쪽: 결과 -->
+            <div class="col-lg-8">
+                <div id="results-container">
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="empty-state">
+                                <i class="fas fa-chart-pie"></i>
+                                <h5>백테스트를 실행하세요</h5>
+                                <p class="mb-0">종목을 선택하고 기간을 설정한 후<br>백테스트를 실행하면 성과 평가 보고서가 생성됩니다</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // ========================================
+        // 상태 관리
+        // ========================================
+        let selectedStocks = [];
+        let searchTimeout = null;
+
+        // ========================================
+        // 초기화
+        // ========================================
+        document.addEventListener('DOMContentLoaded', function() {
+            // 기본 날짜 설정 (최근 6개월)
+            const endDate = new Date();
+            const startDate = new Date();
+            startDate.setMonth(startDate.getMonth() - 6);
+
+            document.getElementById('end-date').value = endDate.toISOString().split('T')[0];
+            document.getElementById('start-date').value = startDate.toISOString().split('T')[0];
+
+            // 검색 이벤트
+            document.getElementById('stock-search').addEventListener('input', handleSearch);
+            document.getElementById('stock-search').addEventListener('focus', () => {
+                if (document.getElementById('search-results').innerHTML) {
+                    document.getElementById('search-results').classList.add('active');
+                }
+            });
+
+            // 검색창 외부 클릭시 닫기
+            document.addEventListener('click', (e) => {
+                if (!e.target.closest('.position-relative')) {
+                    document.getElementById('search-results').classList.remove('active');
+                }
+            });
+        });
+
+        // ========================================
+        // 종목 검색
+        // ========================================
+        function handleSearch(e) {
+            const query = e.target.value.trim();
+
+            if (searchTimeout) clearTimeout(searchTimeout);
+
+            if (query.length < 2) {
+                document.getElementById('search-results').classList.remove('active');
+                return;
+            }
+
+            searchTimeout = setTimeout(() => searchStocks(query), 300);
+        }
+
+        async function searchStocks(query) {
+            try {
+                const response = await fetch(`/api/stocks/search?query=${encodeURIComponent(query)}&limit=10`);
+                if (!response.ok) throw new Error('검색 실패');
+
+                const stocks = await response.json();
+                displaySearchResults(stocks);
+            } catch (error) {
+                console.error('Search error:', error);
+            }
+        }
+
+        function displaySearchResults(stocks) {
+            const container = document.getElementById('search-results');
+
+            if (stocks.length === 0) {
+                container.innerHTML = '<div class="p-3 text-muted">검색 결과가 없습니다</div>';
+            } else {
+                container.innerHTML = stocks.map(stock => `
+                    <div class="stock-search-item" onclick="selectStock('${stock.ticker}', '${stock.company_name}')">
+                        <div class="fw-bold">${stock.company_name}</div>
+                        <small class="text-muted">${stock.ticker} · ${stock.market || ''}</small>
+                    </div>
+                `).join('');
+            }
+
+            container.classList.add('active');
+        }
+
+        function selectStock(ticker, name) {
+            if (selectedStocks.length >= 10) {
+                showToast('최대 10개까지 선택 가능합니다', 'warning');
+                return;
+            }
+
+            if (selectedStocks.find(s => s.ticker === ticker)) {
+                showToast('이미 선택된 종목입니다', 'warning');
+                return;
+            }
+
+            selectedStocks.push({ ticker, name });
+            renderSelectedStocks();
+
+            document.getElementById('stock-search').value = '';
+            document.getElementById('search-results').classList.remove('active');
+        }
+
+        function removeStock(ticker) {
+            selectedStocks = selectedStocks.filter(s => s.ticker !== ticker);
+            renderSelectedStocks();
+        }
+
+        function clearAllStocks() {
+            selectedStocks = [];
+            renderSelectedStocks();
+        }
+
+        function renderSelectedStocks() {
+            const container = document.getElementById('selected-stocks');
+
+            if (selectedStocks.length === 0) {
+                container.innerHTML = '<span class="text-muted small">종목을 검색하여 추가하세요</span>';
+                return;
+            }
+
+            container.innerHTML = selectedStocks.map(stock => `
+                <span class="stock-chip">
+                    ${stock.name}
+                    <span class="remove-btn" onclick="removeStock('${stock.ticker}')">
+                        <i class="fas fa-times"></i>
+                    </span>
+                </span>
+            `).join('');
+        }
+
+        // ========================================
+        // 프리셋
+        // ========================================
+        function loadPreset(type) {
+            const presets = {
+                bluechip: [
+                    { ticker: '005930', name: '삼성전자' },
+                    { ticker: '000660', name: 'SK하이닉스' },
+                    { ticker: '035420', name: 'NAVER' },
+                    { ticker: '035720', name: '카카오' },
+                    { ticker: '005380', name: '현대차' },
+                    { ticker: '051910', name: 'LG화학' },
+                    { ticker: '006400', name: '삼성SDI' },
+                    { ticker: '003670', name: '포스코퓨처엠' },
+                    { ticker: '105560', name: 'KB금융' },
+                    { ticker: '055550', name: '신한지주' }
+                ],
+                tech: [
+                    { ticker: '005930', name: '삼성전자' },
+                    { ticker: '000660', name: 'SK하이닉스' },
+                    { ticker: '035420', name: 'NAVER' },
+                    { ticker: '035720', name: '카카오' },
+                    { ticker: '247540', name: '에코프로비엠' }
+                ],
+                dividend: [
+                    { ticker: '017670', name: 'SK텔레콤' },
+                    { ticker: '030200', name: 'KT' },
+                    { ticker: '032640', name: 'LG유플러스' },
+                    { ticker: '086790', name: '하나금융지주' },
+                    { ticker: '316140', name: '우리금융지주' }
+                ]
+            };
+
+            selectedStocks = presets[type] || [];
+            renderSelectedStocks();
+            showToast(`${selectedStocks.length}개 종목이 로드되었습니다`, 'success');
+        }
+
+        // ========================================
+        // 백테스트 실행
+        // ========================================
+        async function runBacktest() {
+            if (selectedStocks.length === 0) {
+                showToast('종목을 선택해주세요', 'warning');
+                return;
+            }
+
+            const startDate = document.getElementById('start-date').value;
+            const endDate = document.getElementById('end-date').value;
+            const capital = parseInt(document.getElementById('initial-capital').value) || 10000000;
+            const positionSize = (parseFloat(document.getElementById('position-size').value) || 10) / 100;
+            const transactionCost = (parseFloat(document.getElementById('transaction-cost').value) || 0.3) / 100;
+
+            if (!startDate || !endDate) {
+                showToast('시작일과 종료일을 선택해주세요', 'warning');
+                return;
+            }
+
+            const runBtn = document.getElementById('run-btn');
+            runBtn.disabled = true;
+            runBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>분석 중...';
+
+            try {
+                const response = await fetch('/api/v1/screening/backtest', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        tickers: selectedStocks.map(s => s.ticker),
+                        start_date: startDate,
+                        end_date: endDate,
+                        initial_capital: capital,
+                        position_size: positionSize,
+                        transaction_cost: transactionCost
+                    })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    displayResults(data);
+                    showToast('백테스트 완료!', 'success');
+                } else {
+                    showToast('백테스트 실패: ' + (data.detail || '알 수 없는 오류'), 'danger');
+                }
+            } catch (error) {
+                showToast('백테스트 실행 오류: ' + error.message, 'danger');
+            } finally {
+                runBtn.disabled = false;
+                runBtn.innerHTML = '<i class="fas fa-play me-2"></i>백테스트 실행';
+            }
+        }
+
+        // ========================================
+        // 결과 표시
+        // ========================================
+        function displayResults(data) {
+            const container = document.getElementById('results-container');
+            const portfolio = data.portfolio_results || {};
+            const summary = data.summary || {};
+            const report = data.performance_report || {};
+            const metrics = report.metrics || {};
+            const score = report.score || {};
+            const individualResults = data.individual_results || {};
+
+            const grade = score.grade || 'F';
+            const totalScore = score.total_score || 0;
+
+            container.innerHTML = `
+                <!-- 종합 평가 카드 -->
+                <div class="card mb-4">
+                    <div class="card-body p-0">
+                        <div class="summary-card">
+                            <div class="row align-items-center">
+                                <div class="col-md-3 text-center">
+                                    <div class="grade-badge grade-${grade} mx-auto mb-2">${grade}</div>
+                                    <div class="h2 fw-bold mb-0">${totalScore.toFixed(1)}점</div>
+                                    <small class="opacity-75">/ 100점</small>
+                                </div>
+                                <div class="col-md-9">
+                                    <h5 class="mb-3">${score.summary || '평가 결과'}</h5>
+                                    <div class="row">
+                                        <div class="col-6 col-md-3 mb-2">
+                                            <small class="opacity-75">총 수익률</small>
+                                            <div class="h5 mb-0">${metrics.total_return || '-'}</div>
+                                        </div>
+                                        <div class="col-6 col-md-3 mb-2">
+                                            <small class="opacity-75">연환산(CAGR)</small>
+                                            <div class="h5 mb-0">${metrics.cagr || '-'}</div>
+                                        </div>
+                                        <div class="col-6 col-md-3 mb-2">
+                                            <small class="opacity-75">샤프 비율</small>
+                                            <div class="h5 mb-0">${metrics.sharpe_ratio || '-'}</div>
+                                        </div>
+                                        <div class="col-6 col-md-3 mb-2">
+                                            <small class="opacity-75">MDD</small>
+                                            <div class="h5 mb-0">${metrics.max_drawdown || '-'}</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 카테고리별 점수 -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <i class="fas fa-star me-2 text-warning"></i>카테고리별 점수
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            ${renderScoreCategory('수익률', score.return_score || 0, '30%')}
+                            ${renderScoreCategory('리스크 관리', score.risk_score || 0, '25%')}
+                            ${renderScoreCategory('안정성', score.stability_score || 0, '20%')}
+                            ${renderScoreCategory('일관성', score.consistency_score || 0, '15%')}
+                            ${renderScoreCategory('거래 효율', score.efficiency_score || 0, '10%')}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 상세 지표 -->
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <div class="card h-100">
+                            <div class="card-header">
+                                <i class="fas fa-chart-line me-2 text-success"></i>수익 지표
+                            </div>
+                            <div class="card-body">
+                                <div class="metric-item">
+                                    <span class="metric-label">총 수익률</span>
+                                    <span class="metric-value ${parseFloat(metrics.total_return) >= 0 ? 'positive' : 'negative'}">${metrics.total_return || '-'}</span>
+                                </div>
+                                <div class="metric-item">
+                                    <span class="metric-label">연환산 수익률 (CAGR)</span>
+                                    <span class="metric-value">${metrics.cagr || '-'}</span>
+                                </div>
+                                <div class="metric-item">
+                                    <span class="metric-label">최종 평가금액</span>
+                                    <span class="metric-value">${formatNumber(metrics.final_value)}원</span>
+                                </div>
+                                <div class="metric-item">
+                                    <span class="metric-label">손익비 (Profit Factor)</span>
+                                    <span class="metric-value">${metrics.profit_factor || '-'}</span>
+                                </div>
+                                <div class="metric-item">
+                                    <span class="metric-label">승률</span>
+                                    <span class="metric-value">${metrics.win_rate || '-'}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card h-100">
+                            <div class="card-header">
+                                <i class="fas fa-shield-alt me-2 text-primary"></i>리스크 지표
+                            </div>
+                            <div class="card-body">
+                                <div class="metric-item">
+                                    <span class="metric-label">샤프 비율</span>
+                                    <span class="metric-value">${metrics.sharpe_ratio || '-'}</span>
+                                </div>
+                                <div class="metric-item">
+                                    <span class="metric-label">칼마 비율</span>
+                                    <span class="metric-value">${metrics.calmar_ratio || '-'}</span>
+                                </div>
+                                <div class="metric-item">
+                                    <span class="metric-label">최대 손실폭 (MDD)</span>
+                                    <span class="metric-value text-danger">${metrics.max_drawdown || '-'}</span>
+                                </div>
+                                <div class="metric-item">
+                                    <span class="metric-label">변동성</span>
+                                    <span class="metric-value">${metrics.volatility || '-'}</span>
+                                </div>
+                                <div class="metric-item">
+                                    <span class="metric-label">총 거래 수</span>
+                                    <span class="metric-value">${metrics.num_trades || '-'}건</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 강점/약점/권장사항 -->
+                <div class="row mb-4">
+                    <div class="col-md-4">
+                        <div class="card h-100">
+                            <div class="card-header bg-success bg-opacity-10">
+                                <i class="fas fa-thumbs-up me-2 text-success"></i>강점
+                            </div>
+                            <div class="card-body">
+                                ${(score.strengths || ['정보 없음']).map(s =>
+                                    `<div class="strength-item"><i class="fas fa-check me-2"></i>${s}</div>`
+                                ).join('')}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card h-100">
+                            <div class="card-header bg-danger bg-opacity-10">
+                                <i class="fas fa-thumbs-down me-2 text-danger"></i>약점
+                            </div>
+                            <div class="card-body">
+                                ${(score.weaknesses || ['정보 없음']).map(w =>
+                                    `<div class="weakness-item"><i class="fas fa-times me-2"></i>${w}</div>`
+                                ).join('')}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card h-100">
+                            <div class="card-header bg-warning bg-opacity-10">
+                                <i class="fas fa-lightbulb me-2 text-warning"></i>권장사항
+                            </div>
+                            <div class="card-body">
+                                ${(score.recommendations || ['정보 없음']).map(r =>
+                                    `<div class="recommendation-item"><i class="fas fa-arrow-right me-2"></i>${r}</div>`
+                                ).join('')}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 개별 종목 결과 -->
+                <div class="card">
+                    <div class="card-header">
+                        <i class="fas fa-list me-2"></i>개별 종목 결과
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-hover mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>종목</th>
+                                        <th class="text-end">매수가</th>
+                                        <th class="text-end">매도가</th>
+                                        <th class="text-end">수익률</th>
+                                        <th class="text-end">손익</th>
+                                        <th class="text-end">MDD</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${Object.entries(individualResults).map(([ticker, result]) => {
+                                        const stock = selectedStocks.find(s => s.ticker === ticker);
+                                        const returnPct = result.total_return_pct || 0;
+                                        return `
+                                            <tr class="individual-result-card">
+                                                <td>
+                                                    <strong>${stock?.name || ticker}</strong>
+                                                    <br><small class="text-muted">${ticker}</small>
+                                                </td>
+                                                <td class="text-end">${formatNumber(result.buy_price)}원</td>
+                                                <td class="text-end">${formatNumber(result.sell_price)}원</td>
+                                                <td class="text-end ${returnPct >= 0 ? 'text-danger' : 'text-primary'}">
+                                                    ${returnPct >= 0 ? '+' : ''}${returnPct.toFixed(2)}%
+                                                </td>
+                                                <td class="text-end ${result.profit_loss >= 0 ? 'text-danger' : 'text-primary'}">
+                                                    ${result.profit_loss >= 0 ? '+' : ''}${formatNumber(result.profit_loss)}원
+                                                </td>
+                                                <td class="text-end text-muted">-${(result.max_drawdown_pct || 0).toFixed(1)}%</td>
+                                            </tr>
+                                        `;
+                                    }).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            // 결과 영역으로 스크롤
+            container.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+
+        function renderScoreCategory(label, score, weight) {
+            const colorClass = score >= 80 ? 'score-excellent' :
+                              score >= 60 ? 'score-good' :
+                              score >= 40 ? 'score-average' : 'score-poor';
+
+            return `
+                <div class="col-12 mb-3">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <span>${label} <small class="text-muted">(${weight})</small></span>
+                        <span class="fw-bold">${score.toFixed(1)}점</span>
+                    </div>
+                    <div class="score-bar">
+                        <div class="score-bar-fill ${colorClass}" style="width: ${score}%"></div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // ========================================
+        // 유틸리티
+        // ========================================
+        function formatNumber(num) {
+            if (num === null || num === undefined) return '-';
+            return Math.round(num).toLocaleString('ko-KR');
+        }
+
+        function showToast(message, type = 'info') {
+            const existingToast = document.querySelector('.toast-container');
+            if (existingToast) existingToast.remove();
+
+            const bgColor = type === 'success' ? 'bg-success' :
+                           type === 'danger' ? 'bg-danger' :
+                           type === 'warning' ? 'bg-warning' : 'bg-info';
+
+            const toastHtml = `
+                <div class="toast-container position-fixed bottom-0 end-0 p-3">
+                    <div class="toast show ${bgColor}" role="alert">
+                        <div class="toast-body text-white">
+                            <i class="fas fa-${type === 'success' ? 'check-circle' : type === 'danger' ? 'exclamation-circle' : 'info-circle'} me-2"></i>
+                            ${message}
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            document.body.insertAdjacentHTML('beforeend', toastHtml);
+            setTimeout(() => {
+                const toast = document.querySelector('.toast-container');
+                if (toast) toast.remove();
+            }, 3000);
+        }
+    </script>
+</body>
+</html>

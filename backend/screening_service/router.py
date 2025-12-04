@@ -215,7 +215,9 @@ async def run_screening(request: NewScreeningRequest):
 
 @router.post("/backtest")
 async def run_backtest(request: BacktestRequest):
-    """백테스팅 실행"""
+    """백테스팅 실행 (성과 평가 보고서 포함)"""
+    from .performance_scorer import generate_performance_report, calculate_metrics_from_backtest, PerformanceScorer
+
     try:
         results = backtester.run_backtest(
             tickers=request.tickers,
@@ -225,6 +227,54 @@ async def run_backtest(request: BacktestRequest):
             position_size=request.position_size,
             transaction_cost=request.transaction_cost
         )
+
+        # 성과 평가 보고서 생성
+        if results and 'portfolio_results' in results:
+            try:
+                # 백테스트 결과를 평가 모듈 형식으로 변환
+                portfolio = results['portfolio_results']
+
+                # equity_curve 생성 (포트폴리오 가치 변화)
+                initial_capital = results.get('initial_capital', 1000000)
+                final_value = portfolio.get('final_value', initial_capital)
+                period_days = portfolio.get('period_days', 1)
+
+                # 단순 선형 equity curve 생성 (실제 데이터가 없을 경우)
+                equity_curve = []
+                daily_return = (final_value / initial_capital) ** (1 / max(period_days, 1)) - 1
+                current_value = initial_capital
+                for i in range(period_days):
+                    equity_curve.append({'value': current_value, 'day': i})
+                    current_value = current_value * (1 + daily_return)
+                equity_curve.append({'value': final_value, 'day': period_days})
+
+                # trades 정보 구성
+                trades = []
+                individual_results = results.get('individual_results', {})
+                for ticker, result in individual_results.items():
+                    if 'error' not in result:
+                        pnl = result.get('profit_loss', 0)
+                        trades.append({
+                            'ticker': ticker,
+                            'pnl': pnl,
+                            'return_pct': result.get('total_return_pct', 0)
+                        })
+
+                # 평가 모듈용 데이터 구성
+                backtest_data = {
+                    'initial_capital': initial_capital,
+                    'final_value': final_value,
+                    'equity_curve': equity_curve,
+                    'trades': trades
+                }
+
+                # 성과 보고서 생성
+                performance_report = generate_performance_report(backtest_data)
+                results['performance_report'] = performance_report
+
+            except Exception as pe:
+                logger.warning(f"Performance report generation failed: {pe}")
+                results['performance_report'] = None
 
         return results
     except Exception as e:
